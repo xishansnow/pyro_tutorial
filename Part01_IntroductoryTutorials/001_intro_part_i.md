@@ -1,11 +1,18 @@
 ---
 jupytext:
   formats: ipynb,md:myst
-  text_representation: {extension: .md, format_name: myst, format_version: 0.13, jupytext_version: 1.13.1}
-kernelspec: {display_name: Python 3, language: python, name: python3}
+  text_representation:
+    extension: .md
+    format_name: myst
+    format_version: 0.13
+    jupytext_version: 1.11.5
+kernelspec:
+  display_name: Python 3
+  language: python
+  name: python3
 ---
 
-#  Pyro 概率模型简介
+#  Pyro 中的概率模型
 
 ## 1 概述
 概率程序的基本单位是*随机函数*。这是一个任意的 Python 可调用对象，它结合了两种成分：
@@ -19,7 +26,7 @@ kernelspec: {display_name: Python 3, language: python, name: python3}
 
 在整个教程和文档中，我们经常会称随机函数为`模型`，因为随机函数可用来表示生成数据的过程。将模型表示为随机函数意味着：**模型可以像常规 Python 可调用对象一样组合、重用、导入和序列化模型**。
 
-```{code-cell} ipython3
+```{code-cell}
 import torch
 import pyro
 
@@ -32,7 +39,7 @@ pyro.set_rng_seed(101)
 
 在 PyTorch 中使用元随机函数很容易。例如，要从单位正态分布 $\mathcal{N}(0,1)$ 中抽取样本 `x`，我们可以执行以下操作：
 
-```{code-cell} ipython3
+```{code-cell}
 loc = 0.   # mean zero
 scale = 1. # unit variance
 normal = torch.distributions.Normal(loc, scale) # create a normal distribution object
@@ -53,7 +60,7 @@ Pyro 的概率分布软件库 `pyro.distributions` 其实是对 `torch.distribut
 
 假设现在有一些包含日均气温和云量的数据，我们想推断温度与晴/阴天之间的相互作用，那么描述该数据某个可能生成过程的随机函数可以简单由下面 PyTorch 相关的代码给出：
 
-```{code-cell} ipython3
+```{code-cell}
 def weather():
     cloudy = torch.distributions.Bernoulli(0.3).sample()
     cloudy = 'cloudy' if cloudy.item() == 1.0 else 'sunny'
@@ -75,7 +82,7 @@ def weather():
 
 `pyro.sample` 是 Pyro 中的核心元语之一，使用 `pyro.sample` 就像 PyTorch 中调用元随机函数一样简单，但有一个重要区别：
 
-```{code-cell} ipython3
+```{code-cell}
 x = pyro.sample("my_sample", pyro.distributions.Normal(loc, scale))
 print(x)
 ```
@@ -86,7 +93,7 @@ print(x)
 
 现在我们已经引入了 `pyro.sample` 和 `pyro.distributions`，可以将上述简单模型重写为 Pyro 程序：
 
-```{code-cell} ipython3
+```{code-cell}
 def weather():
     cloudy = pyro.sample('cloudy', pyro.distributions.Bernoulli(0.3))
     cloudy = 'cloudy' if cloudy.item() == 1.0 else 'sunny'
@@ -107,7 +114,7 @@ for _ in range(3):
 
 我们现在已经看到了如何定义一个简单的模型。构建它很容易。例如：
 
-```{code-cell} ipython3
+```{code-cell}
 def ice_cream_sales():
     cloudy, temp = weather()
     expected_sales = 200. if cloudy == 'sunny' and temp > 80.0 else 50.
@@ -119,7 +126,7 @@ def ice_cream_sales():
 
 例如，可以构造一个非确定性终止递归过程的递归函数，前提是在调用 `pyro.sample` 时，注意传递唯一的样本名称。例如，我们可以定义一个几何分布来为失败次数计数，直到第一次成功：
 
-```{code-cell} ipython3
+```{code-cell}
 def geometric(p, t=None):
     if t is None:
         t = 0
@@ -136,7 +143,7 @@ print(geometric(0.5))
 
 我们也可以自由定义**将随机函数作为输入或输出**的随机函数：
 
-```{code-cell} ipython3
+```{code-cell}
 def normal_product(loc, scale):
     z1 = pyro.sample("z1", pyro.distributions.Normal(loc, scale))
     z2 = pyro.sample("z2", pyro.distributions.Normal(loc, scale))

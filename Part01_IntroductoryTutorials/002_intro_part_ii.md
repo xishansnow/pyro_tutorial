@@ -1,17 +1,24 @@
 ---
 jupytext:
   formats: ipynb,md:myst
-  text_representation: {extension: .md, format_name: myst, format_version: 0.13, jupytext_version: 1.13.1}
-kernelspec: {display_name: Python 3, language: python, name: python3}
+  text_representation:
+    extension: .md
+    format_name: myst
+    format_version: 0.13
+    jupytext_version: 1.11.5
+kernelspec:
+  display_name: Python 3
+  language: python
+  name: python3
 ---
 
-# Pyro 推断简介
+# Pyro 中的推断
 
 许多现代机器学习方法都可以转换为近似推断，并用 Pyro 之类的概率编程语言简洁地表达。为了引出本教程其余部分，让我们为一个简单的物理问题构建一个生成模型，以便使用 Pyro 的推断机制来解决它。
 
 首先导入本教程所需的模块：
 
-```{code-cell} ipython3
+```{code-cell}
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -40,7 +47,7 @@ $$
 
 请注意，这不仅是我们关于重量的信念模型，也是对其进行测量的结果模型。该模型对应于下面的 `scale` 随机函数：
 
-```{code-cell} ipython3
+```{code-cell}
 def scale(guess):
     weight = pyro.sample("weight", dist.Normal(guess, 1.0))
     return pyro.sample("measurement", dist.Normal(weight, 0.75))
@@ -58,20 +65,20 @@ $$
 
 Pyro 提供了 `pyro.condition` 元语，允许我们限制 `sample` 语句的值。 `pyro.condition` 是一个高阶函数，它接受一个模型和一个观测字典，然后返回一个新模型，新模型具有与原模型相同的输入和输出形式，但始终使用给定的观测值：
 
-```{code-cell} ipython3
+```{code-cell}
 conditioned_scale = pyro.condition(scale, data={"measurement": torch.tensor(9.5)})
 ```
 
  `pyro.condition` 元语的行为就像一个普通的 Python 函数，条件化可以用 Python 的 `lambda` 或 `def` 来做 `defer` 或参数化。
 
-```{code-cell} ipython3
+```{code-cell}
 def deferred_conditioned_scale(measurement, guess):
     return pyro.condition(scale, data={"measurement": measurement})(guess)
 ```
 
 在某些情况下，将观测数据直接传递给单独的 `pyro.sample` 语句而不是使用 `pyro.condition` 可能更方便。因此， `pyro.sample` 保留了可选的 `obs` 关键字参数用于此目的：
 
-```{code-cell} ipython3
+```{code-cell}
 def scale_obs(guess):  # equivalent to conditioned_scale above
     weight = pyro.sample("weight", dist.Normal(guess, 1.))
     # here we condition on measurement == 9.5
@@ -103,7 +110,7 @@ Pyro 中的推断算法，例如 `pyro.infer.SVI`，允许我们将任意随机�
 
 在 `scale` 的案例中，事实证明，给定 `guess` 和 `measurement` 时， `weight` 的真实后验分布实际上是 ${\sf Normal}(9.14, 0.6)$。由于该模型非常简单，通过解析的分析就能够确定后验分布（有关推导，请参见 [这些注释](http://www.stat.cmu.edu/~brian/463-663/week09/Chapter%2003.pdf))。
 
-```{code-cell} ipython3
+```{code-cell}
 def perfect_guide(guess):
     loc = (0.75**2 * guess + 9.5) / (1 + 0.75**2)  # 9.14
     scale = np.sqrt(0.75**2 / (1 + 0.75**2))  # 0.6
@@ -114,7 +121,7 @@ def perfect_guide(guess):
 
 尽管我们可以写出 `scale` 的精确后验分布，但这并不是最一般化的情况。大部分模型都很难指定一个能够良好近似于后验分布的引导。事实上，能够精确确定真实后验分布的情况是例外而不是常态。例如，随便一个中间带有非线性函数的 `scale` 模型版本，就可能是难以处理：
 
-```{code-cell} ipython3
+```{code-cell}
 def intractable_scale(guess):
     weight = pyro.sample("weight", dist.Normal(guess, 1.0))
     return pyro.sample("measurement", dist.Normal(some_nonlinear_function(weight), 0.75))
@@ -124,14 +131,14 @@ def intractable_scale(guess):
 
 `pyro.param` 是 Pyro 中 `键-值对` 类型 `参数存储库` 的前端，在相关文档中有更详细的描述。与 `pyro.sample` 一样，`pyro.param` 总是以名称作为第一个参数来调用。第一次使用特定名称调用 `pyro.param` 时，它会将其中的参数存储在`参数存储库`中，并返回该参数值。之后，当使用该名称调用参数时，它会从`参数存储库`中返回值，而不管任何其他参数。它类似于下面的 `simple_param_store.setdefault`，但具有一些额外的跟踪和管理功能：
 
-```{code-cell} ipython3
+```{code-cell}
 simple_param_store = {}
 a = simple_param_store.setdefault("a", torch.randn(1))
 ```
 
 例如，我们可以用 `scale_posterior_guide` 中的 `a` 和 `b` 参数化，而不用人工单独指定：
 
-```{code-cell} ipython3
+```{code-cell}
 def scale_parametrized_guide(guess):
     a = pyro.param("a", torch.tensor(guess))
     b = pyro.param("b", torch.tensor(1.))
@@ -140,7 +147,7 @@ def scale_parametrized_guide(guess):
 
 顺便说一句，请注意在 `scale_parametrized_guide` 中，我们必须将 `torch.abs` 应用于参数 `b`，因为正态分布的标准差必须为正；类似的限制也适用于许多其他分布的参数。 Pyro 所基于的 PyTorch 概率分布库包括一个 [约束模块](https://pytorch.org/docs/master/distributions.html#module-torch.distributions.constraints) 用于强制执行此类限制，对 Pyro 参数应用约束只需要将 `constraint` 对象传递给 `pyro.param` 这么简单：
 
-```{code-cell} ipython3
+```{code-cell}
 from torch.distributions import constraints
 
 def scale_parametrized_guide_constrained(guess):
@@ -157,7 +164,7 @@ Pyro 旨在启用**随机变分推断**，这是一类强大且广泛适用的�
 
 将随机梯度下降与 PyTorch 的 GPU 加速张量计算和自动微分相结合，可以将变分推断扩展到高维参数空间和海量数据集。 Pyro 的随机变分推断功能在 [SVI 教程](003_svi_part_i.ipynb) 中有详细描述。这有一个非常简单的、应用到 `scale` 模型的例子：
 
-```{code-cell} ipython3
+```{code-cell}
 guess = 8.5
 
 pyro.clear_param_store()
@@ -182,7 +189,7 @@ print('a = ',pyro.param("a").item())
 print('b = ', pyro.param("b").item())
 ```
 
-```{code-cell} ipython3
+```{code-cell}
 plt.subplot(1,2,1)
 plt.plot([0,num_steps],[9.14,9.14], 'k:')
 plt.plot(a)

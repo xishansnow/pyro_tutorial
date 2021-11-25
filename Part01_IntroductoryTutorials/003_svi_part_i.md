@@ -1,8 +1,14 @@
 ---
 jupytext:
-  formats: ipynb,md:myst
-  text_representation: {extension: .md, format_name: myst, format_version: 0.13, jupytext_version: 1.13.1}
-kernelspec: {display_name: Python 3, language: python, name: python3}
+  text_representation:
+    extension: .md
+    format_name: myst
+    format_version: 0.13
+    jupytext_version: 1.11.5
+kernelspec:
+  display_name: Python 3
+  language: python
+  name: python3
 ---
 
 # 随机变分推断 （ $\mathrm{I}$ ）:  Pyro 中的随机变分推断（SVI）
@@ -263,7 +269,7 @@ for step in range(n_steps):
 
 目前唯一缺少的是数据。那么让我们创建一些数据并将上面的所有代码片段组合成一个完整的脚本：
 
-```{code-cell} ipython3
+```{code-cell}
 import math
 import os
 import torch
@@ -301,7 +307,7 @@ def model(data):
         pyro.sample("obs_{}".format(i), dist.Bernoulli(f), obs=data[i])
 
 def guide(data):
-    # register the two variational parameters with Pyro
+    # register the two inferred_mean = alpha_q / (alpha_q + beta_q)variational parameters with Pyro
     # - both parameters will have initial value 15.0. 
     # - because we invoke constraints.positive, the optimizer 
     # will take gradients on the unconstrained parameters
@@ -347,7 +353,7 @@ print("\nbased on the data and our prior belief, the fairness " +
 based on the data and our prior belief, the fairness of the coin is 0.532 +- 0.090
 ```
 
-这个估计将与精确后验均值进行比较，在这种情况下由 $16/30 = 0.5\bar{3}$ 给出。
+这个估计将与精确后验均值进行比较，在这种情况下由 $16/30 = 0.53$ 给出。
 
 请注意，硬币公平性的最终估计介于先验（即 0.50 美元）和经验频率建议的公平性（6/10 美元 = 0.60 美元）之间。
 
