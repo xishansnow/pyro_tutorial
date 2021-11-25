@@ -12,11 +12,11 @@ kernelspec:
   name: python3
 ---
 
-# Bayesian Regression - Inference Algorithms (Part 2)
+# 贝叶斯回归 - 推断算法（第二部分）
 
 +++
 
-In [Part I](bayesian_regression.ipynb), we looked at how to perform inference on a simple Bayesian linear regression model using SVI.  In this tutorial, we'll explore more expressive guides as well as exact inference techniques.  We'll use the same dataset as before.
+在 [第一部分](001_bayesian_regression.ipynb) 中，我们研究了如何使用 SVI 对简单的贝叶斯线性回归模型进行推断。在本教程中，我们将探索更具表现力的`引导`以及更为精确的推断技术。我们将使用与以前相同的数据集。
 
 ```{code-cell} ipython3
 %reset -sf
@@ -52,17 +52,17 @@ DATA_URL = "https://d2hg8soec8ck9v.cloudfront.net/datasets/rugged_data.csv"
 rugged_data = pd.read_csv(DATA_URL, encoding="ISO-8859-1")
 ```
 
-## Bayesian Linear Regression
+## 1 贝叶斯回归
 
-Our goal is once again to predict log GDP per capita of a nation as a function of two features from the dataset - whether the nation is in Africa, and its Terrain Ruggedness Index, but we will explore more expressive guides.
+再次重申下目标：根据数据集中的两个特征预测一个国家的对数人均 GDP，但这次将探索更具表现力的`引导`。
 
 +++
 
-## Model + Guide
+## 2 模型（ `Model` ）+ 引导（ `Guide` ）
 
-We will write out the model again, similar to that in [Part I](bayesian_regression.ipynb), but explicitly without the use of `PyroModule`.  We will write out each term in the regression, using the same priors. `bA` and `bR` are regression coefficients corresponding to  `is_cont_africa` and `ruggedness`, `a` is the intercept, and `bAR` is the correlating factor between the two features.
+我们将再次写出模型，类似于 [第一部分](001_bayesian_regression.ipynb) 中的模型，但明确不使用 `PyroModule`。我们将使用相同的先验写出回归中的每一项。 `bA` 和 `bR` 是对应于 `is_cont_africa` 和 `ruggedness` 的回归系数，`a` 是截距，`bAR` 是两个特征之间的相关因子。
 
-Writing down a guide will proceed in close analogy to the construction of our model, with the key difference that the guide parameters need to be trainable. To do this we register the guide parameters in the ParamStore using `pyro.param()`. Note the positive constraints on scale parameters.
+编写 `引导` 的过程与之前模型的构建非常相似，主要区别在于`引导`的参数需要可训练。为此，我们使用 `pyro.param()` 在参数存储库中注册`引导`的参数。注意尺度（`scale`）参数的正实值约束条件。
 
 ```{code-cell} ipython3
 def model(is_cont_africa, ruggedness, log_gdp):
@@ -109,9 +109,9 @@ df["rgdppc_2000"] = np.log(df["rgdppc_2000"])
 train = torch.tensor(df.values, dtype=torch.float)
 ```
 
-## SVI
+## 3 随机变分推断
 
-As before, we will use SVI to perform inference.
+和之前一样，使用随机变分推断来执行推断任务。
 
 ```{code-cell} ipython3
 from pyro.infer import SVI, Trace_ELBO
@@ -142,7 +142,7 @@ svi_samples = {k: v.reshape(num_samples).detach().cpu().numpy()
                if k != "obs"}
 ```
 
-Let us observe the posterior distribution over the different latent variables in the model.
+让我们观察模型中不同隐变量的后验分布。
 
 ```{code-cell} ipython3
 for site, values in summary(svi_samples).items():
@@ -150,13 +150,12 @@ for site, values in summary(svi_samples).items():
     print(values, "\n")
 ```
 
-## HMC
+## 4 汉密尔顿蒙特卡洛（HMC）推断
 
-In contrast to using variational inference which gives us an approximate posterior over our latent variables, we can also do exact inference using [Markov Chain Monte Carlo](http://docs.pyro.ai/en/dev/mcmc.html) (MCMC), a class of algorithms that in the limit, allow us to draw unbiased samples from the true posterior. The algorithm that we will be using is called the No-U Turn Sampler (NUTS) \[1\], which provides an efficient and automated way of running Hamiltonian Monte Carlo.  It is slightly slower than variational inference, but provides an exact estimate.
+与使用变分推断获得隐变量的近似后验相比，我们还可以使用 [马尔可夫链蒙特卡罗](http://docs.pyro.ai/en/dev/mcmc.html) ( MCMC）推断，一类在极限情况下允许我们从真实后验中抽取无偏样本的算法。本例中将使用的 MCMC 算法为 `No-U Turn Sampler (NUTS)` [1]，它提供了一种运行汉密尔顿蒙特卡罗的高效自动化方法。虽然它比变分推断稍慢，但能够提供更精确的估计。
 
 ```{code-cell} ipython3
 from pyro.infer import MCMC, NUTS
-
 
 nuts_kernel = NUTS(model)
 
@@ -172,11 +171,11 @@ for site, values in summary(hmc_samples).items():
     print(values, "\n")
 ```
 
-## Comparing Posterior Distributions
+## 5 比较后验分布
 
-Let us compare the posterior distribution of the latent variables that we obtained from variational inference with those from Hamiltonian Monte Carlo. As can be seen below, for Variational Inference, the marginal distribution of the different regression coefficients is under-dispersed w.r.t. the true posterior (from HMC). This is an artifact of the *KL(q||p)* loss (the KL divergence of the true posterior from the approximate posterior) that is minimized by Variational Inference.
+让我们比较一下两者的推断结果。如下所示，对于变分推断，不同回归系数的边缘分布相对于真实后验（来自 HMC ）是过于聚集的。这是通过变分推断最小化 KL 散度的人工产物。
 
-This can be better seen when we plot different cross sections from the joint posterior distribution overlaid with the approximate posterior from variational inference. Note that since our variational family has diagonal covariance, we cannot model any correlation between the latents and the resulting approximation is overconfident (under-dispersed)
+当我们绘制来自变分推断的联合后验分布的不同剖面时，可以更直观地看到这一点。由于模型选用的变分族具有对角协方差，因此无法对隐变量之间的任何相关性建模，并且由此产生了过于自信的近似（过于聚集）。
 
 ```{code-cell} ipython3
 sites = ["a", "bA", "bR", "bAR", "sigma"]
@@ -205,9 +204,9 @@ handles, labels = axs[1].get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper right');
 ```
 
-## MultivariateNormal Guide
+## 6 多变量正态引导函数
 
-As comparison to the previously obtained results from Diagonal Normal guide, we will now use a guide that generates samples from a Cholesky factorization of a multivariate normal distribution.  This allows us to capture the correlations between the latent variables via a covariance matrix.  If we wrote this manually, we would need to combine all the latent variables so we could sample a Multivarite Normal jointly.
+与之前对角的多元正态引导函数获得的结果相比，我们现在将使用一个能够对相关性建模的新引导，该引导从多元正态分布的 Cholesky 分解生成样本。这使我们能够通过协方差矩阵捕获潜在变量之间的相关性。如果手动编写它，将需要组合所有隐变量以便可以从多元正态分布中进行联合采样。
 
 ```{code-cell} ipython3
 from pyro.infer.autoguide import AutoMultivariateNormal, init_to_mean
@@ -228,7 +227,7 @@ for i in range(num_iters):
         logging.info("Elbo loss: {}".format(elbo))
 ```
 
-Let's look at the shape of the posteriors again.  You can see the multivariate guide is able to capture more of the true posterior.
+让我们再看一下后验的形状。您可以看到新的多元引导函数能够捕获更多真实后验的信息。
 
 ```{code-cell} ipython3
 predictive = Predictive(model, guide=guide, num_samples=num_samples)
@@ -246,7 +245,7 @@ handles, labels = ax.get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper right');
 ```
 
-Now let's compare the posterior computed by the Diagonal Normal guide vs the Multivariate Normal guide.  Note that the multivariate distribution is more dispresed than the Diagonal Normal.
+现在让我们比较对角型正态引导函数与多变量正态引导计算的后验。请注意，多变量正态分布比对角正态分布更发散。
 
 ```{code-cell} ipython3
 fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
@@ -261,7 +260,7 @@ handles, labels = axs[1].get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper right');
 ```
 
-and the Multivariate guide with the posterior computed by HMC.  Note that the Multivariate guide better captures the true posterior.
+以及如下多变量正态分布引导与 HMC 计算的后验比较。注意多变量引导可以更好地捕捉真实后验的信息。
 
 ```{code-cell} ipython3
 fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
@@ -276,5 +275,5 @@ handles, labels = axs[1].get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper right');
 ```
 
-## References
+## 参考文献
 [1] Hoffman, Matthew D., and Andrew Gelman. "The No-U-turn sampler: adaptively setting path lengths in Hamiltonian Monte Carlo." Journal of Machine Learning Research 15.1 (2014): 1593-1623.  https://arxiv.org/abs/1111.4246.
