@@ -1,15 +1,8 @@
 ---
 jupytext:
   formats: ipynb,md:myst
-  text_representation:
-    extension: .md
-    format_name: myst
-    format_version: 0.13
-    jupytext_version: 1.13.1
-kernelspec:
-  display_name: Python 3
-  language: python
-  name: python3
+  text_representation: {extension: .md, format_name: myst, format_version: 0.13, jupytext_version: 1.13.1}
+kernelspec: {display_name: Python 3, language: python, name: python3}
 ---
 
 #  Pyro 中的张量形状
@@ -33,7 +26,6 @@ kernelspec:
     - 方法1：通过捕获索引 `withpyro.plate(...) as i: ...`  实现手动子采样；
     - 方法2：通过 `batch =pyro.subsample(data, event_dim=...)` 实现自动子采样。
 - 在调试时，使用 [Trace.format_shapes()](http://docs.pyro.ai/en/dev/poutine.html#pyro.poutine.Trace.format_shapes) 检查迹中的所有形状。
-
 
 ```{code-cell} ipython3
 import os
@@ -170,7 +162,6 @@ with pyro.plate("x_plate", 10):
 这两个版本之间的区别在于：带有 `plate` 的版本通知 Pyro ，它可以在估计梯度时利用条件独立信息；而在第一个版本中， Pyro 必须假设它们是有依赖的（即使实际上是条件独立的）。
 
 这类似于概率图模型中的 `d-separation`：添加边并假设变量可能相关（即扩大了模型类）总是安全的，但当变量实际上相关但被假设为独立时，通常是不安全的（即缩小了模型类，导致真正的模型可能位于模型类之外，就像在平均场一样）。在实践中，Pyro 的 SVI 推理算法使用面向 `正态` 分布的重参数化梯度估计器，因此两者的梯度估计具有相同的性能。
-
 
 +++
 

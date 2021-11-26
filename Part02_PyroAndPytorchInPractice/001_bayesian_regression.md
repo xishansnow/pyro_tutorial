@@ -1,15 +1,8 @@
 ---
 jupytext:
   formats: ipynb,md:myst
-  text_representation:
-    extension: .md
-    format_name: myst
-    format_version: 0.13
-    jupytext_version: 1.13.1
-kernelspec:
-  display_name: Python 3
-  language: python
-  name: python3
+  text_representation: {extension: .md, format_name: myst, format_version: 0.13, jupytext_version: 1.13.1}
+kernelspec: {display_name: Python 3, language: python, name: python3}
 ---
 
 # 贝叶斯回归 - 介绍 (第一部分)
@@ -28,7 +21,7 @@ $$
 
 其中 $w$ 和 $b$ 是可学习的参数， $\epsilon$ 表示观测噪声。具体说来在 $w$ 是权重矩阵，而 $b$ 是偏差向量。
 
-在本教程中，我们将首先在 PyTorch 中实现线性回归，并学习参数 $w$ 和 $b$ 的点估计值。然后，我们将了解如何通过 Pyro 实现贝叶斯回归，来将不确定性纳入估计中。此外，还将学习如何使用 Pyro 的工具函数进行预测，并使用`TorchScript`  提供模型。
+在本教程中，我们将首先在 PyTorch 中实现线性回归，并学习参数 $w$ 和 $b$ 的点估计值。然后，我们将了解如何通过 Pyro 实现贝叶斯回归，来将不确定性纳入估计中。此外，还将学习如何使用 Pyro 的工具函数进行预测，并使用`TorchScript`  提供模型服务。
 
 +++
 
@@ -63,7 +56,7 @@ pyro.set_rng_seed(1)
 plt.style.use('default')
 ```
 
-### 1.1 数据集 
+## 2 数据集 
 
 以下示例改编自 [1]。我们想探索由地形崎岖度指数衡量的某个国家地形异质性与其人均 GDP 之间的关系。特别是，作者在[2]中指出，地形崎岖或地理条件差在非洲以外的地区确实和经济表现较差有关，但在非洲国家却与收入有着相反的关系。让我们看看数据并审查这种关系是否是真的。我们将重点引入数据集中的三个特征：
 
@@ -99,7 +92,7 @@ ax[1].set(xlabel="Terrain Ruggedness Index",
           title="African Nations");
 ```
 
-## 2 线性回归
+## 3  Pytorch  和 Pyro 中的线性回归
 
 我们想根据数据集的两个特征（ `cont_africa` 和 `rugged` ）来预测一个国家的对数人均 GDP（`rgdppc_2000`）。我们将创建一个名为 `PyroModule[nn.Linear]` 的普通类，它是 [PyroModule](http://docs.pyro.ai/en/dev/nn.html#module-pyro.nn.module) 和 `torch.nn.Linear`  的子类。 `PyroModule` 与 PyTorch 的 `nn.Module` 非常相似，但额外支持 [Pyro 元语](http://docs.pyro.ai/en/dev/primitives.html#primitives) 作为可以被 [Pyro 效果处理程序](http://pyro.ai/examples/effect_handlers.html) 修改的属性。
 
@@ -117,7 +110,7 @@ assert issubclass(PyroModule[nn.Linear], nn.Linear)
 assert issubclass(PyroModule[nn.Linear], PyroModule)
 ```
 
-### 2.1 使用 PyTorch Optimizers 进行训练
+##  4 使用 PyTorch 的优化器进行训练
 
 除了 `rugged` 和 `cont_africa` 两个特征之外，我们在模型中还包含了一个交互项，这让我们可以分别模拟地形崎岖度对非洲内外国家 GDP 的影响。
 
@@ -163,8 +156,6 @@ for name, param in linear_reg_model.named_parameters():
     print(name, param.data.numpy())
 ```
 
-### 2.2 绘制回归拟合的效果图
-
 让我们绘制下模型的回归拟合效果，并将非洲内外的国家区分开。
 
 ```{code-cell} ipython3
@@ -191,9 +182,9 @@ ax[1].set(xlabel="Terrain Ruggedness Index",
 
 +++
 
-## 3 使用 Pyro 的随机变分推断做贝叶斯回归
+## 5 使用 Pyro 的随机变分推断做贝叶斯回归
 
-### 3.1 模型
+### 5.1 模型
 
 为了使线性回归贝叶斯化，需要在参数 $w$ 和 $b$ 上放置先验。这些分布代表了我们对 $w$ 和 $b$ 合理值的先验信念（在观测到任何数据之前）。
 
@@ -222,9 +213,9 @@ class BayesianRegression(PyroModule):
         return mean
 ```
 
-### 3.2 自动引导（ AutoGuide ） 
+### 5.2 引导与自动引导（ AutoGuide ） 
 
-为了进行推断（即学习未观测到的参数的后验分布），我们将使用随机变分推断 (SVI)。引导（`guide`）引导确定了一个分布族，`SVI` 旨在从这个族中找到一个近似后验分布，它与真实后验具有最小的 KL 散度。
+为了进行推断（即学习未观测到的参数的后验分布），我们将使用随机变分推断 (SVI)。引导（`guide`）确定了一个分布族，`SVI` 旨在从这个族中找到一个近似后验分布，它与真实后验具有最小的 KL 散度。
 
 用户可以在 Pyro 中编写任意灵活的自定义`引导`，但在本教程中，将先限于 Pyro 的[自动引导](http://docs.pyro.ai/en/dev/infer.autoguide.html)。在[下一个教程](002_bayesian_regression_ii.ipynb) 中，才会探索如何手动编写引导。
 
@@ -239,7 +230,7 @@ model = BayesianRegression(3, 1)
 guide = AutoDiagonalNormal(model)
 ```
 
-### 3.3 优化证据下界 ELBO
+### 5.3 优化证据下界 ELBO
 
 我们将使用随机变分推断。就像在非贝叶斯线性回归模型中一样，训练的每次迭代过程都将采取一次梯度步骤，不同之处在于，现在我们将通过给 `SVI` 传递 `Trace_ELBO`对象的方式，来使用证据下界 (ELBO) 作为目标函数，而不是通过使用 MSE 损失。
 
@@ -281,7 +272,7 @@ for name, value in pyro.get_param_store().items():
 guide.quantiles([0.25, 0.5, 0.75])
 ```
 
-## 4 模型评估
+## 6 用 Pyro 做模型评估
 
 为了评估模型，我们将生成一些预测样本并查看后验。为此，可以使用 [Predictive 工具类](http://docs.pyro.ai/en/stable/inference_algos.html#pyro.infer.predictive.Predictive)  。 
 
@@ -291,7 +282,6 @@ guide.quantiles([0.25, 0.5, 0.75])
 
 ```{code-cell} ipython3
 from pyro.infer import Predictive
-
 
 def summary(samples):
     site_stats = {}
@@ -409,16 +399,16 @@ sns.distplot(gamma_outside_africa, kde_kws={"label": "Non-African nations"})
 fig.suptitle("Density of Slope : log(GDP) vs. Terrain Ruggedness");
 ```
 
-## 5 通过 TorchScript 提供模型服务
+## 7 用 TorchScript 提供模型服务
 
-最后，注意`model`、`guide` 和 `Predictive` 工具类都是 `torch.nn.Module` 的实例，可以序列化为 [TorchScript](https://pytorch.org/docs/stable/jit.html）。
+最后，注意`model`、`guide` 和 `Predictive` 工具类都是 `torch.nn.Module` 的实例，可以序列化为 [TorchScript](https://pytorch.org/docs/stable/jit.html) 。
 
-在这里，我们展示了如何将 Pyro 模型作为 [torch.jit.ModuleScript](https://pytorch.org/docs/stable/jit.html#torch.jit.ScriptModule) 提供服务，它可以作为一个没有 Python 运行时环境的 C++ 程序。
+在这里，我们展示了如何将 Pyro 模型转换为 [torch.jit.ModuleScript](https://pytorch.org/docs/stable/jit.html#torch.jit.ScriptModule) ，以作为一个没有 Python 运行环境的 C++ 执行程序提供服务。
 
-为此，我们将使用 [Pyro 的效果处理库](http://pyro.ai/examples/effect_handlers.html) 重写简单版本的  `Predictive` 工具类。这使用：
+为此，我们会使用 [Pyro 的效果处理库](http://pyro.ai/examples/effect_handlers.html) 重写简单版本的  `Predictive` 工具类。这需要：
 
-- `trace` poutine：从`模型/引导`代码的运行中捕获执行的迹。
-- `replay` poutine：将`模型`中的点条件设置为 `引导` 的迹中的采样值。
+- `trace` poutine：从 `模型/引导` 代码的运行中捕获执行的迹。
+- `replay` poutine：将`模型`中的样本条件设置为在 `引导` 的迹中的样本集。
 
 ```{code-cell} ipython3
 from collections import defaultdict
@@ -445,7 +435,7 @@ predict_fn = Predict(model, guide)
 predict_module = torch.jit.trace_module(predict_fn, {"forward": (x_data,)}, check_trace=False)
 ```
 
-我们使用 [torch.jit.trace_module](https://pytorch.org/docs/stable/jit.html#torch.jit.trace_module) 追踪这个模块的 `forward` 方法，并使用 [torch.jit.save](https://pytorch.org/docs/stable/jit.html#torch.jit.save) 保存它。被保存的模型 `reg_predict.pt` 可以使用 PyTorch 的 C++ API `torch::jit::load(filename)`加载，或者使用如下的 Python API。
+我们使用 [torch.jit.trace_module](https://pytorch.org/docs/stable/jit.html#torch.jit.trace_module) 追踪这个模块的 `forward` 方法，并使用 [torch.jit.save](https://pytorch.org/docs/stable/jit.html#torch.jit.save) 保存追踪情况。被保存的内容 `reg_predict.pt` 可以使用 PyTorch 的 C++ API `torch::jit::load(filename)` 实施加载，或者使用如下的 Python API。
 
 ```{code-cell} ipython3
 torch.jit.save(predict_module, '/tmp/reg_predict.pt')
@@ -453,7 +443,7 @@ pred_loaded = torch.jit.load('/tmp/reg_predict.pt')
 pred_loaded(x_data)
 ```
 
-让我们通过从加载的模块中生成样本并重新生成之前的图，来检查 `Predict` 模块是否确实被正确序列化了。
+让我们通过从加载的数据内容中生成样本并重新生成之前的图，来检查 `Predict` 模块是否确实被正确序列化了。
 
 ```{code-cell} ipython3
 weight = []

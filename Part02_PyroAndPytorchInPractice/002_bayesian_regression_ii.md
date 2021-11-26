@@ -1,22 +1,17 @@
 ---
 jupytext:
   formats: ipynb,md:myst
-  text_representation:
-    extension: .md
-    format_name: myst
-    format_version: 0.13
-    jupytext_version: 1.13.1
-kernelspec:
-  display_name: Python 3
-  language: python
-  name: python3
+  text_representation: {extension: .md, format_name: myst, format_version: 0.13, jupytext_version: 1.13.1}
+kernelspec: {display_name: Python 3, language: python, name: python3}
 ---
 
 # 贝叶斯回归 - 推断算法（第二部分）
 
 +++
 
-在 [第一部分](001_bayesian_regression.ipynb) 中，我们研究了如何使用 SVI 对简单的贝叶斯线性回归模型进行推断。在本教程中，我们将探索更具表现力的`引导`以及更为精确的推断技术。我们将使用与以前相同的数据集。
+在 [第一部分](001_bayesian_regression.ipynb) 中，我们研究了如何使用 SVI 对简单的贝叶斯线性回归模型进行推断。在本教程中，我们将探索更具表现力的`引导函数`以及更为精确的推断技术。
+
+我们将使用与以前相同的数据集。
 
 ```{code-cell} ipython3
 %reset -sf
@@ -52,17 +47,17 @@ DATA_URL = "https://d2hg8soec8ck9v.cloudfront.net/datasets/rugged_data.csv"
 rugged_data = pd.read_csv(DATA_URL, encoding="ISO-8859-1")
 ```
 
-## 1 贝叶斯回归
+## 1 目标
 
-再次重申下目标：根据数据集中的两个特征预测一个国家的对数人均 GDP，但这次将探索更具表现力的`引导`。
+再次重申下目标：根据数据集中的两个特征预测一个国家的对数人均 GDP，但这次将探索更具表现力的`引导函数`。
 
 +++
 
-## 2 模型（ `Model` ）+ 引导（ `Guide` ）
+## 2 模型与引导（ `Model`  and `Guide` ）
 
-我们将再次写出模型，类似于 [第一部分](001_bayesian_regression.ipynb) 中的模型，但明确不使用 `PyroModule`。我们将使用相同的先验写出回归中的每一项。 `bA` 和 `bR` 是对应于 `is_cont_africa` 和 `ruggedness` 的回归系数，`a` 是截距，`bAR` 是两个特征之间的相关因子。
+我们将再次写出类似于 [第一部分](001_bayesian_regression.ipynb) 中的模型，但不使用 `PyroModule`。我们将使用相同的先验写出回归中的每一项。 `bA` 和 `bR` 是对应于 `is_cont_africa` 和 `ruggedness` 的回归系数，`a` 是截距，`bAR` 是两个特征之间的相关因子。
 
-编写 `引导` 的过程与之前模型的构建非常相似，主要区别在于`引导`的参数需要可训练。为此，我们使用 `pyro.param()` 在参数存储库中注册`引导`的参数。注意尺度（`scale`）参数的正实值约束条件。
+编写 `guide` 的过程与构建 `model` 的过程非常相似，主要区别在于`guide` 的参数必须是可训练的。为此，使用 `pyro.param()` 在参数存储库中注册 `guide` 的参数。注意示例中，各 `scale` 参数的正实值约束条件。
 
 ```{code-cell} ipython3
 def model(is_cont_africa, ruggedness, log_gdp):
@@ -152,7 +147,11 @@ for site, values in summary(svi_samples).items():
 
 ## 4 汉密尔顿蒙特卡洛（HMC）推断
 
-与使用变分推断获得隐变量的近似后验相比，我们还可以使用 [马尔可夫链蒙特卡罗](http://docs.pyro.ai/en/dev/mcmc.html) ( MCMC）推断，一类在极限情况下允许我们从真实后验中抽取无偏样本的算法。本例中将使用的 MCMC 算法为 `No-U Turn Sampler (NUTS)` [1]，它提供了一种运行汉密尔顿蒙特卡罗的高效自动化方法。虽然它比变分推断稍慢，但能够提供更精确的估计。
+与使用变分推断获得隐变量的近似后验相比，我们还可以使用 [马尔可夫链蒙特卡罗](http://docs.pyro.ai/en/dev/mcmc.html) ( MCMC）推断，一大类允许我们从真实后验中抽取无偏样本的算法。
+
+本例中将使用的 MCMC 算法为 `No-U Turn Sampler (NUTS)` [1]，它提供了一种高效运行汉密尔顿蒙特卡洛的自动化方法。虽然它比变分推断稍慢，但能够提供更精确的估计。
+
+> 注： 当后验分布无法获得解析解时，通常会利用 MCMC 在极限情况下趋近于真实分布的优势，将其推断结果作为真实后验的黄金标准。
 
 ```{code-cell} ipython3
 from pyro.infer import MCMC, NUTS
@@ -171,11 +170,9 @@ for site, values in summary(hmc_samples).items():
     print(values, "\n")
 ```
 
-## 5 比较后验分布
+## 5 两者的比较
 
-让我们比较一下两者的推断结果。如下所示，对于变分推断，不同回归系数的边缘分布相对于真实后验（来自 HMC ）是过于聚集的。这是通过变分推断最小化 KL 散度的人工产物。
-
-当我们绘制来自变分推断的联合后验分布的不同剖面时，可以更直观地看到这一点。由于模型选用的变分族具有对角协方差，因此无法对隐变量之间的任何相关性建模，并且由此产生了过于自信的近似（过于聚集）。
+让我们比较一下两者的推断结果。如下所示，对于变分推断，不同隐变量的边缘分布相对于真实后验（来自 HMC ）过于聚集了（即过于自信了）。当我们绘制来自变分推断的联合后验分布的不同剖面（即隐变量的边缘分布）时，可以更直观地看到这一点。上例中，由于模型选用了具有对角协方差矩阵的变分族，因此无法对隐变量之间的任何相关性建模，并且产生了过于自信的近似。
 
 ```{code-cell} ipython3
 sites = ["a", "bA", "bR", "bAR", "sigma"]
@@ -204,13 +201,14 @@ handles, labels = axs[1].get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper right');
 ```
 
-## 6 多变量正态引导函数
+## 6 增强引导的相关性建模能力
 
-与之前对角的多元正态引导函数获得的结果相比，我们现在将使用一个能够对相关性建模的新引导，该引导从多元正态分布的 Cholesky 分解生成样本。这使我们能够通过协方差矩阵捕获潜在变量之间的相关性。如果手动编写它，将需要组合所有隐变量以便可以从多元正态分布中进行联合采样。
+与之前对角型方差矩阵的多元正态引导函数不同，我们现在将使用一个能够对相关性建模的新引导。该引导从多元正态分布的 Cholesky 分解生成样本，从而使我们能够通过协方差矩阵捕获隐变量之间的相关性。
+
+如果手动编写代码，将需要组合所有隐变量以便可以从多元正态分布中联合采样。
 
 ```{code-cell} ipython3
 from pyro.infer.autoguide import AutoMultivariateNormal, init_to_mean
-
 
 guide = AutoMultivariateNormal(model, init_loc_fn=init_to_mean)
 
@@ -227,7 +225,7 @@ for i in range(num_iters):
         logging.info("Elbo loss: {}".format(elbo))
 ```
 
-让我们再看一下后验的形状。您可以看到新的多元引导函数能够捕获更多真实后验的信息。
+此后再看一下后验的形状，可以看到新引导函数能够捕获更多真实后验的信息。
 
 ```{code-cell} ipython3
 predictive = Predictive(model, guide=guide, num_samples=num_samples)
@@ -245,7 +243,7 @@ handles, labels = ax.get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper right');
 ```
 
-现在让我们比较对角型正态引导函数与多变量正态引导计算的后验。请注意，多变量正态分布比对角正态分布更发散。
+现在比较一下两种不同引导函数计算的后验结果。可以发现，后者比前者更发散，与真实后验更接近，也就是说其生成的近似后验不会像前者那么自信。
 
 ```{code-cell} ipython3
 fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
@@ -260,7 +258,7 @@ handles, labels = axs[1].get_legend_handles_labels()
 fig.legend(handles, labels, loc='upper right');
 ```
 
-以及如下多变量正态分布引导与 HMC 计算的后验比较。注意多变量引导可以更好地捕捉真实后验的信息。
+以下是第二种`引导`的推断结果与 HMC 方法结果进行比较，可以看到新`引导` 能够更好地捕捉真实后验的信息。
 
 ```{code-cell} ipython3
 fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
