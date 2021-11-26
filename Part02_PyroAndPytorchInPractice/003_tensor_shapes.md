@@ -12,37 +12,28 @@ kernelspec:
   name: python3
 ---
 
-# Tensor shapes in Pyro
+#  Pyro 中的张量形状
 
-This tutorial introduces Pyro's organization of tensor dimensions. Before starting, you should familiarize yourself with [PyTorch broadcasting semantics](http://pytorch.org/docs/master/notes/broadcasting.html).  After this tutorial, you may want to also read about [enumeration](http://pyro.ai/examples/enumeration.html).
+本教程介绍了 Pyro 对张量维度的组织方法。在开始之前，你应该先熟悉一下[PyTorch 广播机制](http://pytorch.org/docs/master/notes/broadcasting.html)。 在本教程之后，你可能还想阅读一下[枚举类型](http://pyro.ai/examples/enumeration.html)。
 
-#### Summary:
-- Tensors broadcast by aligning on the right: `torch.ones(3,4,5) + torch.ones(5)`.
-- Distribution `.sample().shape == batch_shape + event_shape`.
-- Distribution `.log_prob(x).shape == batch_shape` (but not `event_shape`!).
-- Use `.expand()` to draw a batch of samples, or rely on `plate` to expand automatically.
-- Use `my_dist.to_event(1)` to declare a dimension as dependent.
-- Use `with pyro.plate('name', size):` to declare a dimension as conditionally independent.
-- All dimensions must be declared either dependent or conditionally independent.
-- Try to support batching on the left. This lets Pyro auto-parallelize.
-  - use negative indices like `x.sum(-1)` rather than `x.sum(2)`
-  - use ellipsis notation like `pixel = image[..., i, j]`
-  - use [Vindex](http://docs.pyro.ai/en/dev/ops.html#pyro.ops.indexing.Vindex) if `i,j` are enumerated, `pixel = Vindex(image)[..., i, j]`
-- When using `pyro.plate`'s automatic subsampling, be sure to subsample your data:
-  - Either manually subample by capturing the index `with pyro.plate(...) as i: ...`
-  - or automatically subsample via `batch = pyro.subsample(data, event_dim=...)`.
-- When debugging, examine all shapes in a trace using [Trace.format_shapes()](http://docs.pyro.ai/en/dev/poutine.html#pyro.poutine.Trace.format_shapes).
-  
-#### Table of Contents
-- [Distribution shapes](#Distributions-shapes:-batch_shape-and-event_shape)
-  - [Examples](#Examples)
-  - [Reshaping distributions](#Reshaping-distributions)
-  - [It is always safe to assume dependence](#It-is-always-safe-to-assume-dependence)
-- [Declaring independence with plate](#Declaring-independent-dims-with-plate)
-- [Subsampling inside plate](#Subsampling-tensors-inside-a-plate)
-- [Broadcasting to allow Parallel Enumeration](#Broadcasting-to-allow-parallel-enumeration)
-  - [Writing parallelizable code](#Writing-parallelizable-code)
-  - [Automatic broadcasting inside pyro.plate](#Automatic-broadcasting-inside-pyro-plate)
+#### 要点：
+
+- 通过右对齐来广播张量：`torch.ones(3,4,5) + torch.ones(5)`
+- 分布的形状 `.sample().shape == batch_shape + event_shape`
+- 分布的对数概率的形状  `.log_prob (x).shape == batch_shape`（而不是 `event_shape`！）
+- 使用 `.expand()` 实现批量样本的抽取，或者通过 `plate` 自动抽取
+- 使用 `my_dist.to_event(1)` 将某个维度声明为从属维度（即依赖其他维度）
+- 使用 `withpyro.plate('name', size):` 将某个维度声明为条件独立的
+- 所有维度必须声明为从属维度或条件独立维度
+- 尝试支持在左侧进行批处理，这可以让 Pyro 自动并行化
+    - 使用负指数，如 `x.sum(-1)` 而不是 `x.sum(2)` 
+    - 使用省略号，如 `pixel = image[..., i, j]` 
+    -  如果 `i,j` 是枚举的，使用 [Vindex](http ://docs.pyro.ai/en/dev/ops.html#pyro.ops.indexing.Vindex) ，例如：`pixel = Vindex(image)[..., i, j] `
+- 当使用 `pyro.plate` 的自动二次采样功能时，确保数据子采样被激活了： 
+    - 方法1：通过捕获索引 `withpyro.plate(...) as i: ...`  实现手动子采样；
+    - 方法2：通过 `batch =pyro.subsample(data, event_dim=...)` 实现自动子采样。
+- 在调试时，使用 [Trace.format_shapes()](http://docs.pyro.ai/en/dev/poutine.html#pyro.poutine.Trace.format_shapes) 检查迹中的所有形状。
+
 
 ```{code-cell} ipython3
 import os
@@ -64,33 +55,42 @@ def test_model(model, guide, loss):
     loss.loss(model, guide)
 ```
 
-## Distributions shapes: `batch_shape` and `event_shape` <a class="anchor" id="Distributions-shapes:-batch_shape-and-event_shape"></a>
+## 1 分布的形状： `batch_shape` 和 `event_shape`
 
-PyTorch `Tensor`s have a single `.shape` attribute, but `Distribution`s have two shape attributions with special meaning: `.batch_shape` and `.event_shape`. These two combine to define the total shape of a sample
+熟悉 PyTorch 的人都知道，其 `Tensor` ​​有一个 `.shape` 属性，但是 `Distribution` 有所不同，它有两个具有特殊含义的形状属性：`.batch_shape` 和 `.event_shape`。这两个属性结合起来定义了一个样本的总形状。
+
 ```py
 x = d.sample()
 assert x.shape == d.batch_shape + d.event_shape
 ```
-Indices over `.batch_shape` denote conditionally independent random variables, whereas indices over `.event_shape` denote dependent random variables (ie one draw from a distribution). Because the dependent random variables define probability together, the `.log_prob()` method only produces a single number for each event of shape `.event_shape`. Thus the total shape of `.log_prob()` is `.batch_shape`:
+
+`.batch_shape` 上的索引表示条件独立型的随机变量，而`.event_shape` 上的索引则表示从属型的随机变量（即从某个分布中抽取出来的）。由于从属型的随机变量在一起定义概率， `.log_prob()` 方法只为形状 `.event_shape` 中的每个事件生成一个数值。因此`.log_prob()`的总形状是： `batch_shape`：
+
 ```py
 assert d.log_prob(x).shape == d.batch_shape
 ```
-Note that the `Distribution.sample()` method also takes a `sample_shape` parameter that indexes over independent identically distributed (iid) random varables, so that
+
+注意 `Distribution.sample()` 方法也可以使用 `sample_shape` 参数来索引独立同分布（ I.I.D）的随机变量：
+
 ```py
 x2 = d.sample(sample_shape)
 assert x2.shape == sample_shape + batch_shape + event_shape
 ```
-In summary
+
+总的来说，有如下关系：
+
+
 ```
       |      iid     | independent | dependent
 ------+--------------+-------------+------------
 shape = sample_shape + batch_shape + event_shape
 ```
-For example univariate distributions have empty event shape (because each number is an independent event). Distributions over vectors like `MultivariateNormal` have `len(event_shape) == 1`. Distributions over matrices like `InverseWishart` have `len(event_shape) == 2`.
 
-### Examples <a class="anchor" id="Examples"></a>
+例如，单变量分布具有`空`的事件形状（因为每个数字都是一个独立事件）。像 `MultivariateNormal` 这样向量上的分布，则有 `len(event_shape) == 1`。 而像 `InverseWishart` 这样矩阵上的分布则具有 `len(event_shape) == 2` 。
 
-The simplest distribution shape is a single univariate distribution.
+### 1.1 示例
+
+最简单的分布形状是一元随机变量的分布：
 
 ```{code-cell} ipython3
 d = Bernoulli(0.5)
@@ -101,7 +101,7 @@ assert x.shape == ()
 assert d.log_prob(x).shape == ()
 ```
 
-Distributions can be batched by passing in batched parameters.
+分布可以通过传递批参数，实现批处理，如下：
 
 ```{code-cell} ipython3
 d = Bernoulli(0.5 * torch.ones(3,4))
@@ -112,8 +112,7 @@ assert x.shape == (3, 4)
 assert d.log_prob(x).shape == (3, 4)
 ```
 
-Another way to batch distributions is via the `.expand()` method. This only works if 
-parameters are identical along the leftmost dimensions.
+另外一种批方法是调用 `.expand()` 方法，这只有在参数沿最左侧维度相同时才有效。例如：
 
 ```{code-cell} ipython3
 d = Bernoulli(torch.tensor([0.1, 0.2, 0.3, 0.4])).expand([3, 4])
@@ -124,7 +123,7 @@ assert x.shape == (3, 4)
 assert d.log_prob(x).shape == (3, 4)
 ```
 
-Multivariate distributions have nonempty `.event_shape`. For these distributions, the shapes of `.sample()` and `.log_prob(x)` differ:
+多元随机变量的分布具有非空的 `.event_shape` 。对于这些分布而言， `.sample()` 和 `.log_prob(x)` 的形状是不同的：
 
 ```{code-cell} ipython3
 d = MultivariateNormal(torch.zeros(3), torch.eye(3, 3))
@@ -135,9 +134,9 @@ assert x.shape == (3,)            # == batch_shape + event_shape
 assert d.log_prob(x).shape == ()  # == batch_shape
 ```
 
-### Reshaping distributions <a class="anchor" id="Reshaping-distributions"></a>
+### 1.2 分布的重新塑形 --- 整形
 
-In Pyro you can treat a univariate distribution as multivariate by calling the [.to_event(n)](http://docs.pyro.ai/en/dev/distributions.html#pyro.distributions.torch_distribution.TorchDistributionMixin.to_event) property where `n` is the number of batch dimensions (from the right) to declare as *dependent*.
+在 Pyro 中，您可以通过调用 [.to_event(n)](http://docs.pyro.ai/en/dev/distributions.html#pyro.distributions.torch_distribution.TorchDistributionMixin.to_event) 属性将单变量分布视为多元分布处理，其中 `n` 是被声明为 **从属的** 的批维度数（从右侧开始）。
 
 ```{code-cell} ipython3
 d = Bernoulli(0.5 * torch.ones(3,4)).to_event(1)
@@ -148,49 +147,65 @@ assert x.shape == (3, 4)
 assert d.log_prob(x).shape == (3,)
 ```
 
-While you work with Pyro programs, keep in mind that samples have shape `batch_shape + event_shape`, whereas `.log_prob(x)` values have shape `batch_shape`. You'll need to ensure that `batch_shape` is carefully controlled by either trimming it down with `.to_event(n)` or by declaring dimensions as independent via `pyro.plate`.
+当您使用 Pyro 程序时，请记住，样本具有 `batch_shape + event_shape` 的形状，而 `.log_prob(x)` 具有 `batch_shape` 的形状。同时，您需要确保能够仔细地控制 `batch_shape`，通过使用 `.to_event(n)` 修剪的方式或通过 `pyro.plate` 将维度声明为独立的方式。
 
-### It is always safe to assume dependence <a class="anchor" id="It-is-always-safe-to-assume-dependence"></a>
+### 1.3 做出依赖假设总是安全的
 
-Often in Pyro we'll declare some dimensions as dependent even though they are in fact independent, e.g.
+通常在 Pyro 中，即使某些维度实际上是独立的，我们也会将其声明为具有依赖性的从属维度，例如：
+
 ```py
 x = pyro.sample("x", Normal(0, 1).expand([10]).to_event(1))
 assert x.shape == (10,)
 ```
-This is useful for two reasons: First it allows us to easily swap in a `MultivariateNormal` distribution later. Second it simplifies the code a bit since we don't need a `plate` (see below) as in
+这很有用，原因有两个：
+
+（1）它允许我们在 `MultivariateNormal` 分布中轻松地进行交换。
+（2）它稍微简化了代码，例如在下面的场景中，我们其实可以不使用 `plate`：
+
 ```py
 with pyro.plate("x_plate", 10):
     x = pyro.sample("x", Normal(0, 1))  # .expand([10]) is automatic
     assert x.shape == (10,)
 ```
-The difference between these two versions is that the second version with `plate` informs Pyro that it can make use of conditional independence information when estimating gradients, whereas in the first version Pyro must assume they are dependent (even though the normals are in fact conditionally independent). This is analogous to d-separation in graphical models: it is always safe to add edges and assume variables *may* be dependent (i.e. to widen the model class), but it is unsafe to assume independence when variables are actually dependent (i.e. narrowing the model class so the true model lies outside of the class, as in mean field). In practice Pyro's SVI inference algorithm uses reparameterized gradient estimators for `Normal` distributions so both gradient estimators have the same performance.
+这两个版本之间的区别在于：带有 `plate` 的版本通知 Pyro ，它可以在估计梯度时利用条件独立信息；而在第一个版本中， Pyro 必须假设它们是有依赖的（即使实际上是条件独立的）。
+
+这类似于概率图模型中的 `d-separation`：添加边并假设变量可能相关（即扩大了模型类）总是安全的，但当变量实际上相关但被假设为独立时，通常是不安全的（即缩小了模型类，导致真正的模型可能位于模型类之外，就像在平均场一样）。在实践中，Pyro 的 SVI 推理算法使用面向 `正态` 分布的重参数化梯度估计器，因此两者的梯度估计具有相同的性能。
+
 
 +++
 
-## Declaring independent dims with `plate` <a class="anchor" id="Declaring-independent-dims-with-plate"></a>
+## 2 用 `plate` 来声明独立的维度
 
-Pyro models can use the context manager [pyro.plate](http://docs.pyro.ai/en/dev/primitives.html#pyro.plate) to declare that certain batch dimensions are independent. Inference algorithms can then take advantage of this independence to e.g. construct lower variance gradient estimators or to enumerate in linear space rather than exponential space. An example of an independent dimension is the index over data in a minibatch: each datum should be independent of all others.
+Pyro 模型可以使用上下文管理器 [pyro.plate](http://docs.pyro.ai/en/dev/primitives.html#pyro.plate) 来声明某些维度是独立的。然后推断算法可以利用这种独立性来例如构造低方差的梯度估计器，或者在线性空间而不是指数空间中做枚举。独立维度的一个例子是小批量数据上的索引：每个数据点都应该独立于所有其他数据点。
 
-The simplest way to declare a dimension as independent is to declare the rightmost batch dimension as independent via a simple
+将维度声明为独立的最简单方法是：将最右侧的那些维度声明为独立的。
+
+
 ```py
 with pyro.plate("my_plate"):
     # within this context, batch dimension -1 is independent
 ```
-We recommend always providing an optional size argument to aid in debugging shapes
+
+我们推荐在调试过程中，一直提供 `size` 参数来辅助对形状的调试。
+
 ```py
 with pyro.plate("my_plate", len(my_data)):
     # within this context, batch dimension -1 is independent
 ```
-Starting with Pyro 0.2 you can additionally nest `plates`, e.g. if you have per-pixel independence:
+
+从 Pyro 0.2 开始，可以实现嵌套的 `plate` ， 例如， 如果每个像素都具有独立性：
+
 ```py
 with pyro.plate("x_axis", 320):
     # within this context, batch dimension -1 is independent
     with pyro.plate("y_axis", 200):
         # within this context, batch dimensions -2 and -1 are independent
 ```
-Note that we always count from the right by using negative indices like -2, -1.
 
-Finally if you want to mix and match `plate`s for e.g. noise that depends only on `x`, some noise that depends only on `y`, and some noise that depends on both, you can declare multiple `plates` and use them as reusable context managers. In this case Pyro cannot automatically allocate a dimension, so you need to provide a `dim` argument (again counting from the right):
+请注意，我们总是使用负指数（如 -2、-1）从右侧开始计数。
+
+最后，如果你想混合和匹配多个 `plate` 时，例如，仅依赖于 `x` 的噪声、仅依赖于 `y` 的噪声、同时依赖于两者的噪声等，可以声明多个 `plate` ​​并将它们用作可重用的上下文管理器。此时， Pyro 无法自动分配维度，因此需要你提供一个 `dim` 参数（依然是右侧计数）：
+
 ```py
 x_axis = pyro.plate("x_axis", 3, dim=-2)
 y_axis = pyro.plate("y_axis", 2, dim=-3)
@@ -201,7 +216,8 @@ with y_axis:
 with x_axis, y_axis:
     # within this context, batch dimensions -3 and -2 are independent
 ```
-Let's take a closer look at batch sizes within `plate`s.
+
+让我们仔细看看`plate`内的批大小。
 
 ```{code-cell} ipython3
 def model1():
@@ -233,7 +249,8 @@ def model1():
 test_model(model1, model1, Trace_ELBO())
 ```
 
-It is helpful to visualize the `.shape`s of each sample site by aligning them at the boundary between `batch_shape` and `event_shape`: dimensions to the right will be summed out in `.log_prob()` and dimensions to the left will remain. 
+通过在 `batch_shape` 和 `event_shape` 之间的边界处做对齐，来可视化每个样本点的 `.shape`，对于形状调试非常有帮助：边界右侧的维度将在 `.log_prob()` 中汇集，而左侧的维度将会留存。
+
 ```
 batch dims | event dims
 -----------+-----------
@@ -257,7 +274,8 @@ batch dims | event dims
       2 3 1|5           z = sample("z", Normal(0, 1).expand([5])
            |                       .to_event(1))
 ```
-To examine the shapes of sample sites in a program automatically, you can trace the program and use the [Trace.format_shapes()](http://docs.pyro.ai/en/dev/poutine.html#pyro.poutine.Trace.format_shapes) method, which prints three shapes for each sample site: the distribution shape (both `site["fn"].batch_shape` and `site["fn"].event_shape`), the value shape (`site["value"].shape`), and if log probability has been computed also the `log_prob` shape (`site["log_prob"].shape`):
+
+要实现程序中样本点形状的自动检查，你可以跟踪程序并使用 [Trace.format_shapes()](http://docs.pyro.ai/en/dev/poutine.html#pyro.poutine.Trace.format_shapes) 方法，它会为每个样本点打印三个形状：分布的形状（`site["fn"].batch_shape + site["fn"].event_shape`）、值形状（`site[ "value"].shape`) 和对数概率形状（`site["log_prob"].shape`）：
 
 ```{code-cell} ipython3
 trace = poutine.trace(model1).get_trace()
@@ -265,11 +283,11 @@ trace.compute_log_prob()  # optional, but allows printing of log_prob shapes
 print(trace.format_shapes())
 ```
 
-## Subsampling tensors inside a `plate` <a class="anchor" id="Subsampling-tensors-inside-a-plate"></a>
+## 3 `plate` 内部的二次采样张量
 
-One of the main uses of [plate](http://docs.pyro.ai/en/dev/primitives.html#pyro.plate) is to subsample data. This is possible within a `plate` because data are conditionally independent, so the expected value of the loss on, say, half the data should be half the expected loss on the full data.
+[plate](http://docs.pyro.ai/en/dev/primitives.html#pyro.plate) 的主要用途之一是对数据进行二次采样。这在 `plate` 中是可能的：由于数据具备（条件）独立性，因此一半数据的损失期望值，在理论上，应当是完整数据损失期望值的一半。
 
-To subsample data, you need to inform Pyro of both the original data size and the subsample size; Pyro will then choose a random subset of data and yield the set of indices.
+为了做数据的二次采样，你需要通知 Pyro 全数据集和二次采样数据集的大小，Pyro 会自动选择一个随机子集，并生成索引集。
 
 ```{code-cell} ipython3
 data = torch.arange(100.)
@@ -287,14 +305,13 @@ def model2():
 test_model(model2, guide=lambda: None, loss=Trace_ELBO())
 ```
 
-## Broadcasting to allow parallel enumeration <a class="anchor" id="Broadcasting-to-allow-parallel-enumeration"></a>
+## 3 允许并行枚举的广播机制
 
-Pyro 0.2 introduces the ability to enumerate discrete latent variables in parallel. This can significantly reduce the variance of gradient estimators when learning a posterior via [SVI](http://docs.pyro.ai/en/dev/inference_algos.html#pyro.infer.svi.SVI).
+Pyro 0.2 引入了并行地枚举离散隐变量的功能。当通过 [SVI](http://docs.pyro.ai/en/dev/inference_algos.html#pyro.infer.svi.SVI) 学习后验时，这可以显着减少梯度估计器的方差。
 
-To use parallel enumeration, Pyro needs to allocate tensor dimension that it can use for enumeration. To avoid conflicting with other dimensions that we want to use for `plate`s, we need to declare a budget of the maximum number of tensor dimensions we'll use. This budget is called `max_plate_nesting` and is an argument to [SVI](http://docs.pyro.ai/en/dev/inference_algos.html) (the argument is simply passed through to [TraceEnum_ELBO](http://docs.pyro.ai/en/dev/inference_algos.html#pyro.infer.traceenum_elbo.TraceEnum_ELBO)). Usually Pyro can determine this budget on its own (it runs the `(model,guide)` pair once and record what happens), but in case of dynamic model structure you may need to declare `max_plate_nesting` manually.
+要使用并行枚举，Pyro 需要分配可用于枚举的张量维。为了避免与用于 `plate` 的其他维度发生冲突，需要预计并声明即将使用的最大张量维数。这个预计值被称为 `max_plate_nesting` 并且是 [SVI](http://docs.pyro.ai/en/dev/inference_algos.html)的一个参数，该参数被简单地传递给[TraceEnum_ELBO](http:// docs.pyro.ai/en/dev/inference_algos.html#pyro.infer.traceenum_elbo.TraceEnum_ELBO)。通常 Pyro 可以自己确定这个预计值（通过运行一次 `model` 和 `guide` 对并记录运行情况），但在动态模型结构情况下，可能需要手动声明 `max_plate_nesting`。
 
-To understand `max_plate_nesting` and how Pyro allocates dimensions for enumeration, let's revisit `model1()` from above. This time we'll map out three types of dimensions:
-enumeration dimensions on the left (Pyro takes control of these), batch dimensions in the middle, and event dimensions on the right.
+要了解 `max_plate_nesting` 以及 Pyro 如何为枚举分配维度，让我们从上面重新审视 `model1()`。这次我们将绘制三种类型的维度：左侧的 `enumeration dimensions` （Pyro 控制这些维度）、中间的 `batch dimensions` 和右侧的 `event dimensions` 。
 
 +++
 
@@ -323,7 +340,10 @@ enumeration|batch|event
            |2 3 1|5         z = sample("z", Normal(0, 1).expand([5]))
            |     |                     .to_event(1))
 ```
-Note that it is safe to overprovision `max_plate_nesting=4` but we cannot underprovision `max_plate_nesting=2` (or Pyro will error). Let's see how this works in practice.
+
+请注意，过度配置 `max_plate_nesting=4` 总是安全的，但不能配置不足，例如  `max_plate_nesting=2` 时， Pyro 会出错。
+
+让我们看看这在实践中是如何工作的。
 
 ```{code-cell} ipython3
 @config_enumerate
@@ -355,9 +375,10 @@ def model3():
 test_model(model3, model3, TraceEnum_ELBO(max_plate_nesting=2))
 ```
 
-Let's take a closer look at those dimensions. First note that Pyro allocates enumeration dims starting from the right at `max_plate_nesting`: Pyro allocates dim -3 to enumerate `a`, then dim -4 to enumerate `b`, then dim -5 to enumerate `c`, and finally dim -6 to enumerate `d`. Next note that samples only have extent (size > 1) in the new enumeration dimension. This helps keep tensors small and computation cheap. (Note that the `log_prob` shape will be broadcast up to contain both enumeratin shape and batch shape, so e.g. `trace.nodes['d']['log_prob'].shape == (2, 1, 1, 1, 5, 4)`.)
+让我们仔细看看这些维度。首先注意，Pyro 从 `max_plate_nesting` 的右侧开始分配枚举维度：Pyro 分配维度 -3 来枚举 `a`，然后维度 -4 来枚举 `b`，然后维度 -5 来枚举 `c`，最后是维度 -6 来枚举 `d`。 接下来请注意，样本在新的枚举维度中只有范围（size > 1）。这有助于保持张量小型化且降低计算成本。 请注意，`log_prob` 形状将被广播以包含 `enumeration dimensions` 和  `batch dimensions` 形状，因此 `trace.nodes['d']['log_prob'].shape == (2, 1, 1, 1, 5, 4)` 。
 
-We can draw a similar map of the tensor dimensions:
+我们可以绘制相似的张量维度图：
+
 ```
      max_plate_nesting = 2
             |<->|
@@ -374,7 +395,7 @@ enumeration batch event
      2 1 1 1|5 4|7            e = pyro.sample("e", Normal(e_loc, e_scale)
             |   |                             .to_event(1))
 ```
-To automatically examine this model with enumeration semantics, we can create an enumerated trace and then use [Trace.format_shapes()](http://docs.pyro.ai/en/dev/poutine.html#pyro.poutine.Trace.format_shapes):
+为了使用枚举语义自动检查这个模型，可以创建一个枚举 `Trace`，然后使用 [Trace.format_shapes()](http://docs.pyro.ai/en/dev/poutine.html#pyro.poutine.Trace.shpaes) ：
 
 ```{code-cell} ipython3
 trace = poutine.trace(poutine.enum(model3, first_available_dim=-3)).get_trace()
@@ -382,9 +403,15 @@ trace.compute_log_prob()  # optional, but allows printing of log_prob shapes
 print(trace.format_shapes())
 ```
 
-### Writing parallelizable code <a class="anchor" id="Writing-parallelizable-code"></a>
+## 4 编写可并行的代码
 
-It can be tricky to write Pyro models that correctly handle parallelized sample sites. Two tricks help: [broadcasting](http://pytorch.org/docs/master/notes/broadcasting.html) and [ellipsis slicing](http://python-reference.readthedocs.io/en/dev/docs/brackets/ellipsis.html). Let's look at a contrived model to see how these work in practice. Our aim is to write a model that works both with and without enumeration.
+编写能够正确并行化处理样本点的 Pyro 模型可能很棘手。两个技巧可能会有帮助：
+
+一是[广播机制](http://pytorch.org/docs/master/notes/broadcasting.html) ；
+
+二是[ellipsis 切片](http://python-reference.readthedocs.io/en/dev/docs/brackets/ellipsis.html) 。
+
+让我们通过以下模型来看看在实践中它们是如何工作的。我们的目标是编写一个既可以使用枚举也可以不使用枚举的模型。
 
 ```{code-cell} ipython3
 width = 8
@@ -447,15 +474,17 @@ test_model(model4, config_enumerate(guide4, "parallel"),
            TraceEnum_ELBO(max_plate_nesting=2))
 ```
 
-### Automatic broadcasting inside pyro.plate<a class="anchor" id="Automatic-broadcasting-inside-pyro-plate"></a>
+## 5 在 `pyro.plate` 内部的自动广播
 
-Note that in all our model/guide specifications, we have relied on [pyro.plate](http://docs.pyro.ai/en/dev/primitives.html#pyro.plate) to automatically expand sample shapes to satisfy the constraints on batch shape enforced by `pyro.sample` statements. However this broadcasting is equivalent to hand-annotated `.expand()` statements.
+请注意，在所有的`模型/引导` 定义中，我们都依赖 [pyro.plate](http://docs.pyro.ai/en/dev/primitives.html#pyro.plate) 自动扩展样本形状以满足由 `pyro.sample` 语句强制执行的批形状约束。不过，这种广播机制等效于手动说明的 `.expand()` 语句。
 
-We will demonstrate this using `model4` from the [previous section](#Writing-parallelizable-code). Note the following changes to the code from earlier:
+我们将使用 [上一节](#Writing-parallelizable-code) 中的 `model4` 来演示这一点。需要对之前代码的以下更改： 
 
- - For the purpose of this example, we will only consider "parallel" enumeration, but broadcasting should work as expected without enumeration or with "sequential" enumeration.
- - We have separated out the sampling function which returns the tensors corresponding to the active pixels. Modularizing the model code into components is a common practice, and helps with maintainability of large models.
- - We would also like to use the `pyro.plate` construct to parallelize the ELBO estimator over [num_particles](http://docs.pyro.ai/en/dev/inference_algos.html#pyro.infer.elbo.ELBO). This is done by wrapping the contents of model/guide inside an outermost `pyro.plate` context.
+- 出于本示例的目的，将仅考虑 `并行` 枚举，但广播应该在没有枚举或使用 `顺序` 枚举的情况下按预期工作。 
+
+- 我们已经分离出采样函数，该函数返回与活动像素对应的张量。将模型代码模块化为组件是一种常见做法，有助于大型模型的可维护性。 
+
+- 我们还想使用 `pyro.plate` 能够构造在 [num_particles](http://docs.pyro.ai/en/dev/inference_algos.html#pyro.infer.elbo.ELBO) 上并行化的 ELBO 估计器。这是通过将 `模型/引导` 的内容包装在最外层 `pyro.plate` 的上下文中来完成的。
 
 ```{code-cell} ipython3
 num_particles = 100  # Number of samples for the ELBO estimator
@@ -523,12 +552,13 @@ test_model_with_sample_fn(sample_pixel_locations_full_broadcasting)
 test_model_with_sample_fn(sample_pixel_locations_partial_broadcasting)
 ```
 
-In the first sampling function, we had to do some manual book-keeping and expand the `Bernoulli` distribution's batch shape to account for the conditionally independent dimensions added by the `pyro.plate` contexts. In particular, note how `sample_pixel_locations` needs knowledge of `num_particles`, `width` and `height` and is accessing these variables from the global scope, which is not ideal. 
+在第一个采样函数中，我们必须进行一些手动记录并扩展 `伯努利` 分布的批形状，以应对由 `pyro.plate` 上下文添加的条件独立性维度。特别要注意， `sample_pixel_locations` 需要有关`num_particles`、`width` 和`height` 的知识，并且会从全局范围访问这些变量，这并不理想。
 
- - The second argument to `pyro.plate`, i.e. the optional `size` argument needs to be provided for implicit broadasting, so that it can infer the batch shape requirement for each of the sample sites. 
- - The existing `batch_shape` of the sample site must be broadcastable with the size of the `pyro.plate` contexts. In our particular example, `Bernoulli(p_x)` has an empty batch shape which is universally broadcastable.
+- 需要提供 `pyro.plate` 的第二个参数，即可选的 `size` 参数，用于隐式广播，以便可以推断每个样本点的批形状要求。 
 
-Note how simple it is to achieve parallelization via tensorized operations using `pyro.plate`! `pyro.plate` also helps in code modularization because model components can be written agnostic of the `plate` contexts in which they may subsequently get embedded in.
+- 样本点的现有 `batch_shape` 必须能够以 `pyro.plate` 上下文中的大小进行广播。在此处的特定示例中，`Bernoulli(p_x)` 有一个空的批形状，它是普遍可广播的。
+
+请注意使用 `pyro.plate` 并通过张量化操作实现并行化是多么简单！ `pyro.plate` 还有助于代码模块化，因为模型组件可以编写为与 `plate` 上下文无关，它们随后可能会嵌入其中。
 
 ```{code-cell} ipython3
 
