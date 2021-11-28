@@ -1,8 +1,15 @@
 ---
 jupytext:
   formats: ipynb,md:myst
-  text_representation: {extension: .md, format_name: myst, format_version: 0.13, jupytext_version: 1.13.1}
-kernelspec: {display_name: Python 3, language: python, name: python3}
+  text_representation:
+    extension: .md
+    format_name: myst
+    format_version: 0.13
+    jupytext_version: 1.11.5
+kernelspec:
+  display_name: Python 3
+  language: python
+  name: python3
 ---
 
 #  Pyro 中的张量形状
@@ -11,21 +18,21 @@ kernelspec: {display_name: Python 3, language: python, name: python3}
 
 #### 要点：
 
-- 通过右对齐来广播张量：`torch.ones(3,4,5) + torch.ones(5)`
-- 分布的形状 `.sample().shape == batch_shape + event_shape`
-- 分布的对数概率的形状  `.log_prob (x).shape == batch_shape`（而不是 `event_shape`！）
-- 使用 `.expand()` 实现批量样本的抽取，或者通过 `plate` 自动抽取
-- 使用 `my_dist.to_event(1)` 将某个维度声明为从属维度（即依赖其他维度）
-- 使用 `withpyro.plate('name', size):` 将某个维度声明为条件独立的
-- 所有维度必须声明为从属维度或条件独立维度
-- 尝试支持在左侧进行批处理，这可以让 Pyro 自动并行化
+（ 1 ）通过右对齐进行张量广播：`torch.ones(3,4,5) + torch.ones(5)`
+（ 2 ）一个概率分布的形状为 `.sample().shape == batch_shape + event_shape`
+（ 3 ）一个概率分布的对数概率的形状  `.log_prob (x).shape == batch_shape`（而不是 `event_shape`！）
+（ 4 ）使用 `.expand()` 实现批量样本的抽取，或者通过 `plate` 自动抽取
+（ 5 ）使用 `my_dist.to_event(1)` 将某个维度声明为从属维度（即依赖其他维度）
+（ 6 ）使用 `with pyro.plate('name', size):` 将某个维度声明为条件独立的
+（ 7 ）所有维度必须声明为从属维度或条件独立维度
+（ 8 ）尝试在左侧进行批处理，这可以让 Pyro 自动并行化
     - 使用负指数，如 `x.sum(-1)` 而不是 `x.sum(2)` 
     - 使用省略号，如 `pixel = image[..., i, j]` 
-    -  如果 `i,j` 是枚举的，使用 [Vindex](http ://docs.pyro.ai/en/dev/ops.html#pyro.ops.indexing.Vindex) ，例如：`pixel = Vindex(image)[..., i, j] `
-- 当使用 `pyro.plate` 的自动二次采样功能时，确保数据子采样被激活了： 
-    - 方法1：通过捕获索引 `withpyro.plate(...) as i: ...`  实现手动子采样；
+    -  如果 `i,j` 是枚举的，使用 [Vindex](http://docs.pyro.ai/en/dev/ops.html#pyro.ops.indexing.Vindex) ，例如：`pixel = Vindex(image)[..., i, j] `
+（ 9 ）当使用 `pyro.plate` 的自动二次采样功能时，确保数据子采样被激活了： 
+    - 方法1：通过捕获索引 `with pyro.plate(...) as i: ...`  实现手动子采样；
     - 方法2：通过 `batch =pyro.subsample(data, event_dim=...)` 实现自动子采样。
-- 在调试时，使用 [Trace.format_shapes()](http://docs.pyro.ai/en/dev/poutine.html#pyro.poutine.Trace.format_shapes) 检查迹中的所有形状。
+（ 10 ）在调试时，使用 [Trace.format_shapes()](http://docs.pyro.ai/en/dev/poutine.html#pyro.poutine.Trace.format_shapes) 检查迹中的所有形状。
 
 ```{code-cell} ipython3
 import os
@@ -159,9 +166,10 @@ with pyro.plate("x_plate", 10):
     x = pyro.sample("x", Normal(0, 1))  # .expand([10]) is automatic
     assert x.shape == (10,)
 ```
+
 这两个版本之间的区别在于：带有 `plate` 的版本通知 Pyro ，它可以在估计梯度时利用条件独立信息；而在第一个版本中， Pyro 必须假设它们是有依赖的（即使实际上是条件独立的）。
 
-这类似于概率图模型中的 `d-separation`：添加边并假设变量可能相关（即扩大了模型类）总是安全的，但当变量实际上相关但被假设为独立时，通常是不安全的（即缩小了模型类，导致真正的模型可能位于模型类之外，就像在平均场一样）。在实践中，Pyro 的 SVI 推理算法使用面向 `正态` 分布的重参数化梯度估计器，因此两者的梯度估计具有相同的性能。
+这类似于概率图模型中的 `d-separation`：添加边并假设变量可能相关总是安全的（即扩大了模型类），但当变量实际上相关但被假设为独立时，通常是不安全的（即缩小了模型类，导致真正的模型可能位于模型类之外，就像在平均场一样）。在实践中，Pyro 的 SVI 推理算法使用面向 `正态` 分布的重参数化梯度估计器，因此两者的梯度估计具有相同的性能。
 
 +++
 
@@ -300,7 +308,7 @@ test_model(model2, guide=lambda: None, loss=Trace_ELBO())
 
 Pyro 0.2 引入了并行地枚举离散隐变量的功能。当通过 [SVI](http://docs.pyro.ai/en/dev/inference_algos.html#pyro.infer.svi.SVI) 学习后验时，这可以显着减少梯度估计器的方差。
 
-要使用并行枚举，Pyro 需要分配可用于枚举的张量维。为了避免与用于 `plate` 的其他维度发生冲突，需要预计并声明即将使用的最大张量维数。这个预计值被称为 `max_plate_nesting` 并且是 [SVI](http://docs.pyro.ai/en/dev/inference_algos.html)的一个参数，该参数被简单地传递给[TraceEnum_ELBO](http:// docs.pyro.ai/en/dev/inference_algos.html#pyro.infer.traceenum_elbo.TraceEnum_ELBO)。通常 Pyro 可以自己确定这个预计值（通过运行一次 `model` 和 `guide` 对并记录运行情况），但在动态模型结构情况下，可能需要手动声明 `max_plate_nesting`。
+要使用并行枚举，Pyro 需要分配可用于枚举的张量维。为了避免与用于 `plate` 的其他维度发生冲突，需要预计并声明即将使用的最大张量维数。这个预计值被称为 `max_plate_nesting` 并且是 [SVI](http://docs.pyro.ai/en/dev/inference_algos.html)的一个参数，该参数被简单地传递给[TraceEnum_ELBO](http://docs.pyro.ai/en/dev/inference_algos.html#pyro.infer.traceenum_elbo.TraceEnum_ELBO)。通常 Pyro 可以自己确定这个预计值（通过运行一次 `model` 和 `guide` 对并记录运行情况），但在动态模型结构情况下，可能需要手动声明 `max_plate_nesting`。
 
 要了解 `max_plate_nesting` 以及 Pyro 如何为枚举分配维度，让我们从上面重新审视 `model1()`。这次我们将绘制三种类型的维度：左侧的 `enumeration dimensions` （Pyro 控制这些维度）、中间的 `batch dimensions` 和右侧的 `event dimensions` 。
 
