@@ -13,17 +13,21 @@ kernelspec:
 
 # 随机变分推断 （ $\mathrm{I}$ ）:  Pyro 中的随机变分推断（SVI）
 
-Pyro 被设计为更多专注于将随机变分推断（SVI）作为通用推断算法。向让我们在 Pyro 中如何做变分推断。
+Pyro 支持很多种推断方法，但更多专注于随机变分推断（SVI）算法。让我们看看如何在 Pyro 中做变分推断。
 
-##  1 设置
+## 1 基本设置
 
-假设我们已经在 Pyro 中定义了一个模型，方法见 [介绍（ I ）](intro_part_i.ipynb) 。作为快速回顾，该模型是作为随机函数 `model(*args, **kwargs)` 的形式给出的，其中带有若干参数。不同的 `model()`  代码通常通过以下映射被编码：
+假设已经在 Pyro 中定义了一个模型，方法见 [介绍（ I ）](001_intro_part_i.ipynb) 。
 
-1.  观测数据 $\Longleftrightarrow$  `pyro.sample` 的 `obs` 参数
-2.  隐变量  $\Longleftrightarrow$  `pyro.sample`
-3.  参数 $\Longleftrightarrow$ `pyro.param`
+我们先作一下快速回顾，该模型是作为随机函数的形式 `model(*args, **kwargs)` 给出的，其中带有若干参数。不同的 `model()`  通常通过以下映射被编码：
 
-首先建立一些基本概念。 模型包含观测数据  ${\bf x}$ 、隐变量 ${\bf z}$ 以及参数  $\theta$ 。模型具有如下形式的联合概率密度：
+（1） 观测数据 $\Longleftrightarrow$  `pyro.sample` 的 `obs` 参数，或 `pyro.condition` 元语。<br>
+（2） 隐变量  $\Longleftrightarrow$  `pyro.sample`。 <br>
+（3） 参数 $\Longleftrightarrow$ `pyro.param`。 <br>
+
+首先建立一些基本概念。 
+
+一般性的，`模型` 包含观测数据  ${\bf x}$ 、隐变量 ${\bf z}$ 以及参数  $\boldsymbol{\theta}$ 。模型具有如下形式的联合概率密度：
 
 $$
 p_{\theta}({\bf x}, {\bf z}) = p_{\theta}({\bf x}|{\bf z}) p_{\theta}({\bf z})
@@ -33,14 +37,14 @@ $$
 
 > 注：此处 $p_i$ 应当是指 $p_{\theta}({\bf x}|{\bf z})$ 和 $p_{\theta}({\bf z})$ 。
 
-1.  我们能够从各 $p_i$ 中采样
-2.  我们能够逐点计算对数概率密度函数值 $p_i$ 
-3. $p_i$ 相对于参数 $\theta$ 可微
+（1） 我们能够在各 $p_i$ 中进行采样。<br>
+（2） 我们能够逐点计算 $p_i$ 的（对数）概率密度值。<br>
+（3） $p_i$ 相对于参数 $\theta$ 可微 --- 优化的要求。 <br>
 
 
 ## 2 模型学习
 
-当前判断是否学习了一个好模型的准则主要是最大化对数证据，即我们希望找到满足如下条件的 $\theta$ 值：
+当前判断是否学习了一个好模型的准则主要是**最大化对数证据**，即我们希望找到满足如下条件的 $\theta$ 值：
 
 $$
 \theta_{\rm{max}} = \underset{\theta}{\operatorname{arg max}} \log p_{\theta}({\bf x})
@@ -49,12 +53,10 @@ $$
 其中，对数证据  $\log p_{\theta}({\bf x})$ 通过下式的边缘化获得：
 
 $$
-\log p_{\theta}({\bf x}) = \log \int\! d{\bf z}\; p_{\theta}({\bf x}, {\bf z})
+\log p_{\theta}({\bf x}) = \log \int p_{\theta}({\bf x}, {\bf z})  d{\bf z}
 $$
 
-通常情况下，这是一个非常困难的问题。主要是因为隐变量 $\bf z$ 上的积分非常棘手，即使 $\theta$ 是个固定值也很难计算。更甚者，即使我们知道如何为每个 $\theta$ 值计算对数证据，将最大化对数证据作为优化 $\theta$ 的目标函数通常也是一个难度很大的非凸优化问题。
-
-In addition to finding $\theta_{\rm{max}}$, we would like to calculate the posterior over the latent variables $\bf z$:
+通常情况下，这是一个非常困难的问题。主要是因为隐变量 $\bf z$ 上的积分非常棘手，即使 $\theta$ 是固定值也很难计算。更甚者，即使我们知道如何为每个 $\theta$ 值计算其对数证据，将最大化对数证据作为优化 $\theta$ 的目标函数通常也是一个难度很大的非凸优化问题。
 
 除了找到 $\theta_{\rm{max}}$ 之外，我们还想计算潜在变量 $\bf z$ 的后验：
 
