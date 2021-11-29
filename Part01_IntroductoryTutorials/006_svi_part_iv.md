@@ -1,15 +1,8 @@
 ---
 jupytext:
   formats: ipynb,md:myst
-  text_representation:
-    extension: .md
-    format_name: myst
-    format_version: 0.13
-    jupytext_version: 1.11.5
-kernelspec:
-  display_name: Python 3
-  language: python
-  name: python3
+  text_representation: {extension: .md, format_name: myst, format_version: 0.13, jupytext_version: 1.13.1}
+kernelspec: {display_name: Python 3, language: python, name: python3}
 ---
 
 # 变分推断（ $\mathrm{IV}$ ） 技巧和窍门
