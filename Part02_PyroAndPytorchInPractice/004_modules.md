@@ -1,39 +1,48 @@
 ---
 jupytext:
   formats: ipynb,md:myst
-  text_representation: {extension: .md, format_name: myst, format_version: 0.13, jupytext_version: 1.13.1}
-kernelspec: {display_name: Python 3, language: python, name: python3}
+  text_representation:
+    extension: .md
+    format_name: myst
+    format_version: 0.13
+    jupytext_version: 1.11.5
+kernelspec:
+  display_name: Python 3
+  language: python
+  name: python3
 ---
 
-# Modules in Pyro
+# Pyro 中的模块
 
+本教程主要介绍 [PyroModule](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroModule)，[torch.nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) 类的一个 Pyro 贝叶斯扩展。
 
-This tutorial introduces [PyroModule](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroModule), Pyro's Bayesian extension of PyTorch's [nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) class. Before starting you should understand the basics of Pyro [models](http://pyro.ai/examples/intro_part_i.html) and [inference](http://pyro.ai/examples/intro_part_ii.html), understand the two primitives [pyro.sample()](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.sample) and [pyro.param()](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.param), and understand the basics of Pyro's [effect handlers](http://pyro.ai/examples/effect_handlers.html) (e.g. by browsing [minipyro.py](https://github.com/pyro-ppl/pyro/blob/dev/pyro/contrib/minipyro.py)).
+在开始之前你应该了解关于 Pyro 中的 [模型](http://pyro.ai/examples/intro_part_i.html)和[推断](http://pyro.ai/examples/intro_part_ii.html) 基础知识，了解 [pyro.sample()](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.sample) 和 [pyro.param()](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.param) 两个基本元语，并了解 [Pyro Effects 处理程序](http://pyro.ai/examples/Effects_handlers.html) 的基础知识（例如通过浏览 [minipyro.py](https://github.com/pyro-ppl/pyro/blob/dev/pyro/contrib/minipyro.py) ）。
 
-#### Summary:
+#### 要点:
 
-- [PyroModule](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroModule)s are like [nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module)s but allow Pyro effects for sampling and constraints.
-- `PyroModule` is a mixin subclass of `nn.Module` that overrides attribute access (e.g. `.__getattr__()`).
-- There are three different ways to create a `PyroModule`:
-  - create a new subclass: `class MyModule(PyroModule): ...`,
-  - Pyro-ize an existing class: `MyModule = PyroModule[OtherModule]`, or
-  - Pyro-ize an existing `nn.Module` instance in-place: `to_pyro_module_(my_module)`.
-- Usual `nn.Parameter` attributes of a `PyroModule` become Pyro parameters.
-- Parameters of a `PyroModule` synchronize with Pyro's global param store.
-- You can add constrained parameters by creating [PyroParam](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroParam) objects.
-- You can add stochastic attributes by creating [PyroSample](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroSample) objects.
-- Parameters and stochastic attributes are named automatically (no string required).
-- `PyroSample` attributes are sampled once per `.__call__()` of the outermost `PyroModule`.
-- To enable Pyro effects on methods other than `.__call__()`, decorate them with @[pyro_method](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.pyro_method).
-- A `PyroModule` model may contain `nn.Module` attributes.
-- An `nn.Module` model may contain at most one `PyroModule` attribute (see [naming section](#Caution-avoiding-duplicate-names)).
-- An `nn.Module` may contain both a `PyroModule` model and `PyroModule` guide (e.g. [Predictive](http://docs.pyro.ai/en/stable/inference_algos.html#pyro.infer.predictive.Predictive)).
+- [PyroModule](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroModule) 就像 [nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) ，但允许  Pyro 的采样和约束等 Effects 。 
+
+- `PyroModule` 是 `nn.Module` 的混合子类，它重载了属性访问（例如 `.__getattr__()`）。 
+- 创建自定义的 `PyroModule` 有三种不同的方法：
+    - 创建一个 `PyroModule` 的子类：`class MyModule(PyroModule): ...`，
+    - Pyro 化现有的类：`MyModule = PyroModule[OtherModule]`
+    - 就地 Pyro 化一个现有的 `nn.Module` 实例：`to_pyro_module_(my_module)`。
+- 通常`PyroModule` 的`nn.Parameter` 属性都变成了 Pyro 参数。
+- `PyroModule` 的参数与 Pyro 的全局参数存储库同步。
+- 您可以通过创建 [PyroParam 对象](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroParam) 来添加约束参数。
+- 您可以通过创建 [PyroSample 对象](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroSample) 来添加随机属性。
+- 参数和随机属性会自动命名（不需要字符串）。
+- 最外层`PyroModule` 的每此 `.__call__()` ，都会对 `PyroSample` 属性做一次采样。
+- 要想在 `.__call__()` 以外的方法中启用 Pyro  Effects ， 应当用 [@pyro_method](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.pyro_method) 来装饰它们。
+- 一个 `PyroModule` 模型可能包含 `nn.Module` 属性。
+- 一个 `nn.Module` 模型最多只能包含一个 `PyroModule` 属性，参见 [命名部分](#Caution-avoiding-duplicate-names) 。
+- `nn.Module` 可能既包含一个 `PyroModule` 模型，又包含 `PyroModule` 引导，例如 [预测性分布](http://docs.pyro.ai/en/stable/inference_algos.html#pyro.infer.predictive.Predictive) 。
 
 #### Table of Contents
 
 - [How PyroModule works](#How-PyroModule-works)
 - [How to create a PyroModule](#How-to-create-a-PyroModule)
-- [How effects work](#How-effects-work)
+- [How Effects work](#How-Effects-work)
 - [How to constrain parameters](#How-to-constrain-parameters)
 - [How to make a PyroModule Bayesian](#How-to-make-a-PyroModule-Bayesian)
 - [Caution: accessing attributes inside plates](#⚠-Caution:-accessing-attributes-inside-plates)
@@ -59,17 +68,20 @@ smoke_test = ('CI' in os.environ)
 assert pyro.__version__.startswith('1.7.0')
 ```
 
-## How `PyroModule` works  <a class="anchor" id="How-PyroModule-works"></a>
+## 1 `PyroModule` 的工作原理
 
-[PyroModule](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroModule) aims to combine Pyro's primitives and effect handlers with PyTorch's [nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) idiom, thereby enabling Bayesian treatment of existing `nn.Module`s and enabling model serving via [jit.trace_module](https://pytorch.org/docs/stable/jit.html#torch.jit.trace_module). Before you start using `PyroModule`s it will help to understand how they work, so you can avoid pitfalls.
+[PyroModule](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroModule) 旨在将 Pyro 的元语和 Effects 处理程序与 PyTorch 的 [nn.Module](https://pytorch.org/docs/stable/nn.html#torch.nn.Module) 习惯用法相结合，从而实现对现有 `nn.Module` 的贝叶斯处理，并通过  [j​​it.trace_module](https://pytorch.org/docs/stable/jit.html#torch.jit.trace_module) 实现模型服务。在开始使用 `PyroModule`s 之前，了解它们的工作原理将有助于避免陷阱。
 
-`PyroModule` is a subclass of `nn.Module`. `PyroModule` enables Pyro effects by inserting effect handling logic on module attribute access, overriding the `.__getattr__()`, `.__setattr__()`, and `.__delattr__()` methods. Additionally, because some effects (like sampling) apply only once per model invocation, `PyroModule` overrides the `.__call__()` method to ensure samples are generated at most once per `.__call__()` invocation (note `nn.Module` subclasses typically implement a `.forward()` method that is called by `.__call__()`).
+
+`PyroModule` 是 `nn.Module` 的子类。 `PyroModule` 通过在模块属性访问中插入 Effects 处理逻辑来实现 Pyro Effects，如：重载 `.__getattr__()`、`.__setattr__()` 和 `.__delattr__()` 方法来启用 Pyro Effects。
+
+此外，由于某些 Effects （如采样）仅在每次模型调用时应用一次，`PyroModule` 重载了 `.__call__()` 方法以确保每次 `.__call__()` 调用最多只生成一次样本。注意： `nn.Module ` 子类通常实现一个由 `.__call__()` 调用的 `.forward()` 方法。
 
 +++
 
-## How to create a `PyroModule`   <a class="anchor" id="How-to-create-a-PyroModule"></a>
+## 2 如何创建一个 `PyroModule`
 
-There are three ways to create a `PyroModule`. Let's start with a `nn.Module` that is not a `PyroModule`:
+有三种创建 `PyroModule` 的途径。 首先从并非 `PyroModule` 的 `nn.Module` 开始：
 
 ```{code-cell} ipython3
 class Linear(nn.Module):
@@ -90,7 +102,10 @@ example_output = linear(example_input)
 assert example_output.shape == (100, 2)
 ```
 
-The first way to create a `PyroModule` is to create a subclass of `PyroModule`. You can update any `nn.Module` you've written to be a PyroModule, e.g.
+**（1） 创建 `PyroModule` 的子类**
+
+第一个创建 `PyroModule` 的方法是创建一个 `PyroModule` 的子类。你可以将所有的 `nn.Module` 改写成一个 `PyroModule` ，例如：
+
 ```diff
 - class Linear(nn.Module):
 + class Linear(PyroModule):
@@ -100,7 +115,10 @@ The first way to create a `PyroModule` is to create a subclass of `PyroModule`. 
           self.bias = ...
       ...
 ```
-Alternatively if you want to use third-party code like the `Linear` above you can subclass it, using `PyroModule` as a mixin class
+
+**（2） 将 `PyroModule` 作为混合类**
+
+当你想使用第三方代码（如上例中的 `Linear`）时，可以创建一个该类的子类，并将 `PyroModule` 作为混合类（ mixin class ）：
 
 ```{code-cell} ipython3
 class PyroLinear(Linear, PyroModule):
@@ -116,12 +134,14 @@ example_output = linear(example_input)
 assert example_output.shape == (100, 2)
 ```
 
-The second way to create a `PyroModule` is to use bracket syntax `PyroModule[-]` to automatically denote a trivial mixin class as above.
+`PyroModule` 另外提供了一种 `PyroModule[-]` 自动化语法来实现混合类。
+
 ```diff
 - linear = Linear(5, 2)
 + linear = PyroModule[Linear](5, 2)
 ```
-In our case we can write
+
+在我们的示例中，可以写为：
 
 ```{code-cell} ipython3
 linear = PyroModule[Linear](5, 2)
@@ -134,9 +154,11 @@ example_output = linear(example_input)
 assert example_output.shape == (100, 2)
 ```
 
-The one difference between manual subclassing and using `PyroModule[-]` is that `PyroModule[-]` also ensures all `nn.Module` superclasses also become `PyroModule`s, which is important for class hierarchies in library code. For example since `nn.GRU` is a subclass of `nn.RNN`, also `PyroModule[nn.GRU]` will be a subclass of `PyroModule[nn.RNN]`.
+两者之间（ 即用子类手工定义和用`[]`语法自动定义 ）的一个区别是： `PyroModule[-]` 方法可以确保所有 `nn.Module` 超类也变成了 `PyroModule`， 这对于库代码中的类层次结构非常重要。 例如： 由于 `nn.GRU` 是一个 `nn.RNN` 的子类，因此 `PyroModule[nn.GRU]` 也会是 `PyroModule[nn.RNN]` 的子类。
 
-The third way to create a `PyroModule` is to change the type of an existing `nn.Module` instance in-place using [to_pyro_module_()](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.to_pyro_module_). This is useful if you're using a third-party module factory helper or updating an existing script, e.g.
+**（3）使用 `to_pyro_module_()` 将 `nn.Module` 转换为 `PyroModule`**
+
+第三种方法是使用 [`to_pyro_module_()`](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.to_pyro_module_) 方法将 `nn.Module` 就地转换为 `PyroModule` 。当你使用第三方模块工程 helper 或更新已有脚本时，会非常有用。 例如：
 
 ```{code-cell} ipython3
 linear = Linear(5, 2)
@@ -153,9 +175,9 @@ example_output = linear(example_input)
 assert example_output.shape == (100, 2)
 ```
 
-## How effects work <a class="anchor" id="How-effects-work"></a>
+## 3 Effects 是如何工作的？
 
-So far we've created `PyroModule`s but haven't made use of Pyro effects. But already the `nn.Parameter` attributes of our `PyroModule`s act like [pyro.param](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.param) statements: they synchronize with Pyro's param store, and they can be recorded in traces.
+虽然创建了 `PyroModule` ，但还没有使用 `Pyro  Effects` 。不过我们已经介绍过 `PyroModle` 的 `nn.Parameter` 属性行为类似于 [pyro.param](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.param) 语句: 这些参数将与 Pyro 的参数存储库保持同步，并记录在迹中。
 
 ```{code-cell} ipython3
 pyro.clear_param_store()
@@ -177,9 +199,9 @@ print(list(tr.trace.nodes.keys()))
 print(list(pyro.get_param_store().keys()))
 ```
 
-## How to constrain parameters  <a class="anchor" id="How-to-constrain-parameters"></a>
+## 4 如何约束参数？
 
-Pyro parameters allow constraints, and often we want our `nn.Module` parameters to obey constraints. You can constrain a `PyroModule`'s parameters by replacing `nn.Parameter` with a [PyroParam](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroParam) attribute. For example to ensure the `.bias` attribute is positive, we can set it to
+Pyro 参数允许设置约束，而且我们经常希望 `nn.Module` 参数遵循某种约束。 此时，你可以通过将 `nn.Parameter` 替换为 [PyroParam](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroParam) 属性来约束 `PyroModule` 的参数。 例如为确保 `.bias` 参数的属性保持为正实数，我们可以用以下方法设置：
 
 ```{code-cell} ipython3
 print("params before:", [name for name, _ in linear.named_parameters()])
@@ -193,10 +215,10 @@ example_output = linear(example_input)
 assert example_output.shape == (100, 2)
 ```
 
-Now PyTorch will optimize the `.bias_unconstrained` parameter, and each time we access the `.bias` attribute it will read and transform the `.bias_unconstrained` parameter (similar to a Python `@property`).
+现在 PyTorch 将对 `.bias_unconstrained` 参数进行优化， 并且每次我们访问 `.bias` 的属性时，它将自动读取和转换 `.bias_unconstrained` 参数 ( 类似于 Python 的 `@property` ).
 
+如果你预先知道约束，你可以将在 module 的构造器中创建它，例如：
 
-If you know the constraint beforehand, you can build it into the module constructor, e.g.
 ```diff
   class Linear(PyroModule):
       def __init__(self, in_size, out_size):
@@ -210,9 +232,9 @@ If you know the constraint beforehand, you can build it into the module construc
 
 +++
 
-## How to make a `PyroModule`  Bayesian  <a class="anchor" id="How-to-make-a-PyroModule-Bayesian"></a>
+## 5 如何使 `PyroModule` 贝叶斯化
 
-So far our `Linear` module is still deterministic. To make it randomized and Bayesian, we'll replace `nn.Parameter` and `PyroParam` attributes with [PyroSample](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroSample) attributes, specifying a prior. Let's put a simple prior over the weights, taking care to expand its shape to `[5,2]` and declare event dimensions with [.to_event()](http://docs.pyro.ai/en/stable/distributions.html#pyro.distributions.torch_distribution.TorchDistributionMixin.to_event) (as explained in the [tensor shapes tutorial](https://pyro.ai/examples/tensor_shapes.html)).
+然而我们的 `Linear` 模块依然是确定性的。 为了使其具备随机性并且是贝叶斯的， 在声明一个先验同时， 需要将 `nn.Parameter` 和 `PyroParam` 属性替换为 [PyroSample 属性](http://docs.pyro.ai/en/stable/nn.html#pyro.nn.module.PyroSample) 。 让我们在权重上配置一个简单先验，注意将其形状扩展为 `[5,2]` ，并且用 [.to_event()](http://docs.pyro.ai/en/stable/distributions.html#pyro.distributions.torch_distribution.TorchDistributionMixin.to_event) 声明 event 维 ( 参见 [tensor shapes tutorial](https://pyro.ai/examples/tensor_shapes.html) )。
 
 ```{code-cell} ipython3
 print("params before:", [name for name, _ in linear.named_parameters()])
@@ -227,9 +249,9 @@ example_output = linear(example_input)
 assert example_output.shape == (100, 2)
 ```
 
-Notice that the `.weight` parameter now disappears, and each time we call `linear()` a new weight is sampled from the prior. In fact, the weight is sampled when the `Linear.forward()` accesses the `.weight` attribute: this attribute now has the special behavior of sampling from the prior.
+注意 `.weight` 参数消失了，并且每次调用 `linear()` 时，会从先验中采样得到一个新的权重。 事实上，权重的采样是发生在 `Linear.forward()` 访问 `.weight` 属性的时候： 该属性现在有了从先验中采样的特殊行为。
 
-We can see all the Pyro effects that appear in the trace:
+我们可以看看迹中出现的所有 Pyro Effects ：
 
 ```{code-cell} ipython3
 with poutine.trace() as tr:
@@ -238,14 +260,15 @@ for site in tr.trace.nodes.values():
     print(site["type"], site["name"], site["value"])
 ```
 
-So far we've modified a third-party module to be Bayesian
+到此我们已经将一个第三方的模块转换成贝叶斯的了。
+
 ```py
 linear = Linear(...)
 to_pyro_module_(linear)
 linear.bias = PyroParam(...)
 linear.weight = PyroSample(...)
 ```
-If you are creating a model from scratch, you could instead define a new class
+如果你从头创建一个模型，则你可以定义一个新类：
 
 ```{code-cell} ipython3
 class BayesianLinear(PyroModule):
@@ -260,7 +283,8 @@ class BayesianLinear(PyroModule):
         return self.bias + input @ self.weight  # this line samples bias and weight
 ```
 
-Note that samples are drawn at most once per `.__call__()` invocation, for example
+注意，在每次调用 `.__call__()` 时只能抽取最多一个样本，例如：
+
 ```py
 class BayesianLinear(PyroModule):
     ...
@@ -273,9 +297,9 @@ class BayesianLinear(PyroModule):
 
 +++
 
-## ⚠ Caution: accessing attributes inside plates  <a class="anchor" id="⚠-Caution:-accessing-attributes-inside-plates"></a>
+## 6 提醒: 在 `plates` 内访问属性
 
-Because `PyroSample` and `PyroParam` attributes are modified by Pyro effects, we need to take care where parameters are accessed. For example [pyro.plate](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.plate) contexts can change the shape of sample and param sites. Consider a model with one latent variable and a batched observation statement. We see that the only difference between these two models is where the `.loc` attribute is accessed.
+因为 `PyroSample` 和 `PyroParam` 属性是被 Pyro Effects 修改的，因此我们需要注意参数是在哪里被访问的。例如： [pyro.plate](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.plate) 上下文可以改变样本和参数点的形状。考虑一个具有一个隐变量和一批观测量的模型，我们可以看到两种模型之间唯一的区别就是 `.loc` 属性被访问了。
 
 ```{code-cell} ipython3
 class NormalModel(PyroModule):
@@ -306,9 +330,9 @@ LocalModel()(data)
 GlobalModel()(data)
 ```
 
-## How to create a complex nested `PyroModule` <a class="anchor" id="How-to-create-a-complex-nested-PyroModule"></a>
+## 7 如何创建复杂的嵌套 `PyroModule` 
 
-To perform inference with the above `BayesianLinear` module we'll need to wrap it in probabilistic model with a likelihood; that wrapper will also be a `PyroModule`.
+为了使用上述 `BayesianLinear` 模块进行贝叶斯推断，我们需要在概率模型中为其指定一个似然，该似然应当也被封装为`PyroModule` 。
 
 ```{code-cell} ipython3
 class Model(PyroModule):
@@ -325,7 +349,7 @@ class Model(PyroModule):
                                obs=output)
 ```
 
-Whereas a usual `nn.Module` can be trained with a simple PyTorch optimizer, a Pyro model requires probabilistic inference, e.g. using [SVI](http://docs.pyro.ai/en/stable/inference_algos.html#pyro.infer.svi.SVI) and an [AutoNormal](http://docs.pyro.ai/en/stable/infer.autoguide.html#pyro.infer.autoguide.AutoNormal) guide. See the [bayesian regression tutorial](http://pyro.ai/examples/bayesian_regression.html) for details.
+就像一般的 `nn.Module` 都能够使用简单的 PyTorch 优化器进行训练一样， 一个 Pyro 模型也可以使用 [SVI](http://docs.pyro.ai/en/stable/inference_algos.html#pyro.infer.svi.SVI) 和 [AutoNormal](http://docs.pyro.ai/en/stable/infer.autoguide.html#pyro.infer.autoguide.AutoNormal) 等引导函数做概率推断。细节参见 [bayesian regression tutorial](http://pyro.ai/examples/bayesian_regression.html) 。
 
 ```{code-cell} ipython3
 %%time
@@ -344,7 +368,7 @@ for step in range(2 if smoke_test else 501):
         print("step {} loss = {:0.4g}".format(step, loss))
 ```
 
-`PyroSample` statements may also depend on other sample statements or parameters. In this case the `prior` can be a callable depending on `self`, rather than a constant distribution. For example consider the hierarchical model
+`PyroSample` 语句可以依赖于其他 `sample` 语句或参数。在本示例中，先验 `prior` 是一个依赖于自身的可调用对象，而不是一个常值分布。 例如，考虑如下分层模型：
 
 ```{code-cell} ipython3
 class Model(PyroModule):
@@ -361,11 +385,11 @@ class Model(PyroModule):
 Model()()
 ```
 
-## How naming works  <a class="anchor" id="How-naming-works"></a>
+## 8 命名是如何工作的？
 
-In the above code we saw a `BayesianLinear` model embedded inside another `Model`. Both were `PyroModule`s. Whereas simple [pyro.sample](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.sample) statements require name strings, `PyroModule` attributes handle naming automatically. Let's see how that works with the above `model` and `guide` (since `AutoNormal` is also a `PyroModule`).
+在上面代码中，我们看到了一个 `BayesianLinear` 模型，其中嵌入了另外一个 `Model`，两者都是 `PyroModule`。与简单的 [pyro.sample](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.sample) 语句需要名称字符串作为参数一样， `PyroModule` 属性也会自动处理命名。让我们看下在上述 `model` 和 `guide` 中它们是如何工作的 ( 因为 `AutoNormal` 也是一个 `PyroModule`).
 
-Let's trace executions of the model and the guide.
+让我们跟踪该`模型`和`引导`的执行。
 
 ```{code-cell} ipython3
 with poutine.trace() as tr:
@@ -374,7 +398,7 @@ for site in tr.trace.nodes.values():
     print(site["type"], site["name"], site["value"].shape)
 ```
 
-Observe that `model.linear.bias` corresponds to the `linear.bias` name, and similarly for the `model.linear.weight` and `model.obs_scale` attributes. The "instances" site corresponds to the plate, and the "obs" site corresponds to the likelihood. Next examine the guide:
+可以观对应于 `linear.bias` 名称的 `model.linear.bias` 属性，以及类似的 `model.linear.weight` 和 `model.obs_scale` 属性。 相应的实例对应于 `plate` 和对应于似然的 `obs` 观测数据点。下一步检查`引导`：
 
 ```{code-cell} ipython3
 with poutine.trace() as tr:
@@ -383,7 +407,8 @@ for site in tr.trace.nodes.values():
     print(site["type"], site["name"], site["value"].shape)
 ```
 
-We see the guide learns posteriors over three random variables: `linear.bias`, `linear.weight`, and `obs_scale`. For each of these, the guide learns a `(loc,scale)` pair of parameters, which are stored internally in nested `PyroModules`:
+可以看到 `引导` 学习三个随机变量上的后验分布，它们分别是: `linear.bias`, `linear.weight`, 和 `obs_scale`。对于其中每一个， `引导` 学习了一个保存在嵌套 `PyroModules` 内部的 `(loc,scale)` 参数对：
+
 ```python
 class AutoNormal(...):
     def __init__(self, ...):
@@ -391,17 +416,19 @@ class AutoNormal(...):
         self.scales = PyroModule()
         ...
 ```
-Finally, `AutoNormal` contains a `pyro.sample` statement for each unconstrained latent site followed by a [pyro.deterministic](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.deterministic) statement to map the unconstrained sample to a constrained posterior sample.
+
+最终， `AutoNormal` 为每一个后跟了 [pyro.deterministic](http://docs.pyro.ai/en/stable/primitives.html#pyro.primitives.deterministic) 语句的无约束隐变量包含了一个 `pyro.sample` 语句，用于将无约束样本映射到有约束的后验样本。
 
 +++
 
-## ⚠ Caution: avoiding duplicate names <a class="anchor" id="⚠-Caution:-avoiding-duplicate-names"></a>
+## 9 注意：避免重名
 
-`PyroModule`s name their attributes automatically, event for attributes nested deeply in other `PyroModule`s. However care must be taken when mixing usual `nn.Module`s with `PyroModule`s, because `nn.Module`s do not support automatic site naming.
+`PyroModule` 自动命名它们的属性，用于嵌套在其他 `PyroModule` 中的属性的`event`。然而，在混合 `nn.Module` 和 `PyroModule` 时必须小心，因为 `nn.Module` 不支持自动命名。
 
-Within a single model (or guide):
+在一个简单的`模型`( 或 `引导` ) 中：
 
-If there is only a single `PyroModule`, then your are safe.
+如果仅有一个 `PyroModule`，则你是安全的。
+
 ```diff
   class Model(nn.Module):        # not a PyroModule
       def __init__(self):
@@ -409,13 +436,18 @@ If there is only a single `PyroModule`, then your are safe.
 -         self.y = PyroModule()  # Could lead to name conflict.
 +         self.y = nn.Module()  # Has no Pyro names, so avoids conflict.
 ```
-If there are only two `PyroModule`s then one must be an attribute of the other.
+如果仅有两个 `PyroModule`，那么其中一个必须是另外一个的属性之一。
+
 ```diff
 class Model(PyroModule):
     def __init__(self):
        self.x = PyroModule()  # ok
 ```
-If you have two `PyroModule`s that are not attributes of each other, then they must be connected by attribute links through other `PyroModule`s. These can be sibling links
+
+如果你有两个不是彼此属性的 `PyroModule`，那么它们必须通过其他 `PyroModule` 的属性进行链接。
+
+下面是通过兄弟的链接：
+
 ```diff
 - class Model(nn.Module):     # Could lead to name conflict.
 + class Model(PyroModule):    # Ensures names are unique.
@@ -423,7 +455,9 @@ If you have two `PyroModule`s that are not attributes of each other, then they m
           self.x = PyroModule()
           self.y = PyroModule()
 ```
-or ancestor links
+
+或者祖先链接：
+
 ```diff
   class Model(PyroModule):
       def __init__(self):
@@ -432,7 +466,8 @@ or ancestor links
           self.x.y = PyroModule()
 ```
 
-Sometimes you may want to store a `(model,guide)` pair in a single `nn.Module`, e.g. to serve them from C++. In this case it is safe to make them attributes of a container `nn.Module`, but that container should *not* be a `PyroModule`.
+有时你可能想在单个 `nn.Module` 中存储一个 `(model,guide)` 对。此时使它们成为容器 `nn.Module` 的属性是安全的，但该容器不应该是`PyroModule`。
+
 ```python
 class Container(nn.Module):            # This cannot be a PyroModule.
     def __init__(self, model, guide):  # These may be PyroModules.
