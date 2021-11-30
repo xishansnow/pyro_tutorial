@@ -1,10 +1,11 @@
 ---
 jupytext:
+  formats: ipynb,md:myst
   text_representation:
     extension: .md
     format_name: myst
     format_version: 0.13
-    jupytext_version: 1.13.1
+    jupytext_version: 1.11.5
 kernelspec:
   display_name: Python 3
   language: python
@@ -128,7 +129,7 @@ for i in range(6):
     print('%d: %.2f ± %.2f' % (i + 1, means[i], stds[i]))
 ```
 
-As expected, this produces the same inferences as computed earlier. Now that we've had a brief introduction to probabilistic programming in Pyro and reviewed a simple application of Dirichlet and multinomial/categorical distributions, we are ready to resume our LDA tutorial. 
+As expected, this produces the same inferences as computed earlier. Now that we've had a brief introduction to probabilistic programming in Pyro and reviewed a simple application of Dirichlet and multinomial/categorical distributions, we are ready to resume our LDA tutorial.
 
 +++
 

@@ -1,10 +1,11 @@
 ---
 jupytext:
+  formats: ipynb,md:myst
   text_representation:
     extension: .md
     format_name: myst
     format_version: 0.13
-    jupytext_version: 1.13.1
+    jupytext_version: 1.11.5
 kernelspec:
   display_name: Python 3
   language: python
@@ -72,7 +73,7 @@ As discussed in the introduction, we're considering the model depicted in Figure
 We structure the components of our guide $q_{\phi}(.)$ as follows:
 
 - $q_{\phi}({\bf y}~|~{\bf x}) = Cat({\bf y}~|~{\bf \alpha}_{\phi}\left({\bf x}\right))$: parameterized multinomial (or categorical) distribution; ${\bf \alpha}_{\phi}\left({\bf x}\right)$ corresponds to `encoder_y` in the code
-- $q_{\phi}({\bf z}~|~{\bf x, y}) = \mathcal{N}({\bf z}~|~{\bf \mu}_{\phi}\left({\bf x, y}\right), {\bf \sigma^2_{\phi}\left(x, y\right)})$: parameterized normal distribution; ${\bf \mu}_{\phi}\left({\bf x, y}\right)$ and ${\bf \sigma^2_{\phi}\left(x, y\right)}$ correspond to the neural digit classifier `encoder_z` in the code 
+- $q_{\phi}({\bf z}~|~{\bf x, y}) = \mathcal{N}({\bf z}~|~{\bf \mu}_{\phi}\left({\bf x, y}\right), {\bf \sigma^2_{\phi}\left(x, y\right)})$: parameterized normal distribution; ${\bf \mu}_{\phi}\left({\bf x, y}\right)$ and ${\bf \sigma^2_{\phi}\left(x, y\right)}$ correspond to the neural digit classifier `encoder_z` in the code
 
 +++
 
@@ -84,7 +85,7 @@ We translate this model and guide pair into Pyro code below. Note that:
 
 - `model()` handles both the observed and unobserved case.
 
-- The code assumes that `xs` and `ys` are mini-batches of images and labels, respectively, with the size of each batch denoted by `batch_size`. 
+- The code assumes that `xs` and `ys` are mini-batches of images and labels, respectively, with the size of each batch denoted by `batch_size`.
 
 ```{code-cell} ipython3
 def model(self, xs, ys=None):
@@ -266,7 +267,7 @@ def guide_classify(xs, ys):
 svi_aux = SVI(model_classify, guide_classify, optimizer, loss=Trace_ELBO())
 ```
 
-When we run inference in Pyro with the additional term in the objective, we outperform both previous inference setups. For example, the test accuracy for the case with $3000$ labeled examples improves from `90%` to `96%` (see Figure 4 below and Table 1 in the next section). Note that we used validation accuracy to select the hyperparameter $\alpha'$. 
+When we run inference in Pyro with the additional term in the objective, we outperform both previous inference setups. For example, the test accuracy for the case with $3000$ labeled examples improves from `90%` to `96%` (see Figure 4 below and Table 1 in the next section). Note that we used validation accuracy to select the hyperparameter $\alpha'$.
 
 ```{raw-cell}
 :raw_mimetype: text/html

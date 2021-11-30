@@ -1,10 +1,11 @@
 ---
 jupytext:
+  formats: ipynb,md:myst
   text_representation:
     extension: .md
     format_name: myst
     format_version: 0.13
-    jupytext_version: 1.13.1
+    jupytext_version: 1.11.5
 kernelspec:
   display_name: Python 3
   language: python
@@ -333,5 +334,3 @@ See the full code on [Github](https://github.com/pyro-ppl/pyro/blob/dev/examples
 
 [1] `Learning Structured Output Representation using Deep Conditional Generative Models`,<br/>&nbsp;&nbsp;&nbsp;&nbsp;
 Kihyuk Sohn, Xinchen Yan, Honglak Lee
-
-+++
