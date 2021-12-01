@@ -5,14 +5,12 @@ jupytext:
     extension: .md
     format_name: myst
     format_version: 0.13
-    jupytext_version: 1.13.1
+    jupytext_version: 1.11.5
 kernelspec:
-  display_name: Python 3 (ipykernel)
+  display_name: Python 3
   language: python
   name: python3
 ---
-
-+++ {"slideshow": {"slide_type": "slide"}, "tags": []}
 
 # 变分自编码器
 
@@ -157,11 +155,6 @@ class Decoder(nn.Module):
 接下来定义一个 PyTorch 模块来封装我们的编码器网络：
 
 ```{code-cell} ipython3
----
-slideshow:
-  slide_type: slide
-tags: []
----
 class Encoder(nn.Module):
     def __init__(self, z_dim, hidden_dim):
         super().__init__()
